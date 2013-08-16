@@ -14,7 +14,7 @@
 	"bugs": {
 		"url": "https://github.com/joje6/bundle.system/issues"
 	},
-	"main": "index.js",
+	"main": "bundle.system.js",
 	"dependencies": {
 		"semver": "*",
 		"cli-table": "*"
