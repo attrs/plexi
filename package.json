@@ -1,6 +1,6 @@
 {
 	"name": "bundle.system",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"description": "OSGi style bundle system",
 	"author": {
 		"name": "joje",

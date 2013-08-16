@@ -175,6 +175,7 @@ Bundle.STATUS_STOPPED = 'stopped';
 Bundle.STATUS_ERROR = 'error';
 Bundle.TYPE_SERVICE = 'service';
 Bundle.TYPE_LIBRARY = 'library';
+Bundle.TYPE_INVALID = 'invalid';
 
 Bundle.prototype = {
 	detect: function detect() {
@@ -267,7 +268,7 @@ Bundle.prototype = {
 					return result;
 				}
 			});
-		} else if( fs.existsSync(package_file) )  {
+		} else if( fs.existsSync(package_file) ) {
 			Object.defineProperty(this, 'type', {
 				value: Bundle.TYPE_LIBRARY,
 				enumerable: true,
@@ -292,6 +293,16 @@ Bundle.prototype = {
 					return imports;
 				}
 			});
+		} else {
+			Object.defineProperty(this, 'type', {
+				value: Bundle.TYPE_INVALID,
+				enumerable: true,
+				configurable: true,
+				writable: false
+			});
+			
+			this.status = Bundle.STATUS_ERROR;
+			return;
 		}
 		
 		this.status = Bundle.STATUS_DETECTED;
