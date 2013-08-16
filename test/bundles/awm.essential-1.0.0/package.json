@@ -1,0 +1,9 @@
+{
+	"name": "attrs.wm.essential",
+	"description": "Attributes Web Modules - Essential",
+	"version": "1.0.0",
+	"private": true,
+	"main": "activator.js",
+	"dependencies": {
+	}
+}

@@ -1,0 +1,10 @@
+{
+	"name": "bundle.system",
+	"description": "Bundle System",
+	"version": "0.0.2",
+	"main": "bundle.system.js",
+	"dependencies": {
+		"semver": "*",
+		"cli-table": "*"
+	}
+}

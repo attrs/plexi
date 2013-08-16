@@ -1,0 +1,11 @@
+{
+	"name": "attrs.bundles.test.service",
+	"description": "attrs.bundles.test.service",
+	"version": "1.0.0",
+	"private": true,
+	"main": "activator.js",
+	"dependencies": {
+		"node-uuid": "*",
+		"test-module": "*"
+	}
+}

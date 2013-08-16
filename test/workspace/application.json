@@ -1,0 +1,86 @@
+{
+	"applicationId": "printingengine",
+	"name": "Printing Engine",
+	"bundles": {
+		"http": {
+			"version": "1.0.0",
+			"options": {
+				"port": 80,
+				"docbase": "{home}/webapps",
+				"_ssl": {
+					"port": 443,
+					"key": "{home}/cert/key.pem",
+					"cert": "{home}/cert/cert.pem"
+				},
+				"router-mapping": {
+					"awm.essential": {
+						"client": "/core",
+						"api": "/api/core"
+					},
+					"awm.mall": {
+						"client": "/mall",
+						"api": "/api/mall"
+					},
+					"appbus.ui": {
+						"docs": "/appbus/docs",
+						"src": "/appbus"
+					},
+					"appbus.workbench": {
+						"docs": "/workbench/docs",
+						"src": "/workbench"
+					}
+				}
+			}
+		},
+		"persist": {
+			"version": "1.*",
+			"options": {
+				"databases": [
+					{
+						"name": "master",
+						"config": {
+							"type": "mongo",
+							"host": "127.0.0.1",
+							"port": 27017,
+							"userId": "",
+							"password": "",
+							"db": "printingengine"
+						}
+					}
+				]
+			}
+		},
+		"test.service": {
+			"version": "1.0.0",
+			"options": {
+				"test": "{home}"
+			}
+		},
+		"awm.essential": {
+			"version": "1.0.0",
+			"options": {
+				"session.server": {
+					"ip": "127.0.0.1",
+					"port": 20100
+				},
+				"database": "master"
+			}
+		},
+		"awm.mall": {
+			"version": "1.0.0",
+			"options": {
+				"payment.server": {
+					"ip": "127.0.0.1",
+					"port": 20100
+				},
+				"database": "master"
+			}
+		},
+		"appbus.ui": {
+			"version": "1.0.0"
+		},
+		"appbus.workbench": {
+			"version": "1.0.0"
+		}
+	}
+}

@@ -1,0 +1,35 @@
+{
+	"name": "attrs.persist",
+	"version": "0.2.0",
+	"description": "ODM",
+	"author": {
+		"name": "joje",
+		"email": "joje.attrs@gmail.com",
+		"url": "https://github.com/joje6"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git://github.com/joje6/attrs.persist.git"
+	},
+	"bugs": {
+		"url": "https://github.com/joje6/attrs.persist/issues"
+	},
+	"main": "index.js",
+	"dependencies": {
+		"mongodb": "*",
+		"node-uuid": "*"
+	},
+	"directories" : { "src": "./src" },
+	"licenses": [
+		{
+		  "type": "MIT",
+		  "url": "http://www.opensource.org/licenses/MIT"
+		}
+	],
+	"keywords": [
+		"persistence",
+		"persist",
+		"ODM",
+		"odm"
+	]
+}

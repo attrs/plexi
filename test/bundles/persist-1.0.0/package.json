@@ -1,0 +1,9 @@
+{
+	"name": "bundles.persist",
+	"description": "Persistence Service",
+	"version": "1.0.0",
+	"main": "activator.js",
+	"dependencies": {
+		"attrs.persist": "0.2.0"
+	}
+}

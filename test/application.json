@@ -1,0 +1,36 @@
+{
+	"applicationId": "test",
+	"name": "Bundle System Test",
+	"bundles": {
+		"http": {
+			"version": "1.0.0",
+			"options": {
+				"port": 80,
+				"docbase": "{home}/webapps",
+				"_ssl": {
+					"port": 443,
+					"key": "{home}/cert/key.pem",
+					"cert": "{home}/cert/cert.pem"
+				},
+				"router-mapping": {
+					"awm.essential": {
+						"client": "/core",
+						"api": "/api/core"
+					},
+					"awm.mall": {
+						"client": "/mall",
+						"api": "/api/mall"
+					},
+					"appbus.ui": {
+						"docs": "/appbus/docs",
+						"src": "/appbus"
+					},
+					"appbus.workbench": {
+						"docs": "/workbench/docs",
+						"src": "/workbench"
+					}
+				}
+			}
+		}
+	}
+}
