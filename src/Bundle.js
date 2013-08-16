@@ -41,7 +41,7 @@ BundleContext.prototype = {
 					if( typeof(o) === 'function' ) {
 						result[key] = (function(o) {
 							return function() {
-								return o.apply(caller.bundle, arguments);
+								return o.apply(caller, arguments);
 							}
 						})(o);
 					} else {
