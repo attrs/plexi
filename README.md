@@ -8,3 +8,4 @@
 ### Usage
 	var bs = require('bundle.system');
 	
+	... usage & examples will be updated soon ...
