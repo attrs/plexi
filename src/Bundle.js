@@ -14,12 +14,54 @@ var BundleContext = function BundleContext(bundle) {
 		configurable: false,
 		writable: false
 	});
-	
-	this.applicationId = bundle.application.applicationId;
-	this.bundleId = bundle.bundleId;
-	this.version = bundle.version;
-	this.home = bundle.home;
-	this.workspace = bundle.workspace;
+
+	Object.defineProperty(this, 'applicationId', {
+		enumerable: true,
+		configurable: false,
+		get: function() {
+			return bundle.application.applicationId;
+		}
+	});
+
+	Object.defineProperty(this, 'bundleId', {
+		enumerable: true,
+		configurable: false,
+		get: function() {
+			return bundle.bundleId;
+		}
+	});
+
+	Object.defineProperty(this, 'version', {
+		enumerable: true,
+		configurable: false,
+		get: function() {
+			return bundle.version;
+		}
+	});
+
+	Object.defineProperty(this, 'home', {
+		enumerable: true,
+		configurable: false,
+		get: function() {
+			return bundle.home;
+		}
+	});
+
+	Object.defineProperty(this, 'workspace', {
+		enumerable: true,
+		configurable: false,
+		get: function() {
+			return bundle.workspace;
+		}
+	});
+
+	Object.defineProperty(this, 'bundles', {
+		enumerable: true,
+		configurable: false,
+		get: function() {
+			return bundle.application.bundles;
+		}
+	});
 };
 
 BundleContext.prototype = {
