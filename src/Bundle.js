@@ -65,6 +65,9 @@ var BundleContext = function BundleContext(bundle) {
 };
 
 BundleContext.prototype = {
+	on: function(event, fn) {
+		this.bundle.application.on(event, fn);
+	},
 	require: function(bundleId) {
 		var caller = this.bundle;
 		
@@ -220,6 +223,9 @@ Bundle.TYPE_LIBRARY = 'library';
 Bundle.TYPE_INVALID = 'invalid';
 
 Bundle.prototype = {
+	path: function(f) {
+		return path.join(this.home, f);
+	},
 	detect: function detect() {
 		var manifest_file = path.join(this.home, 'bundle.json');
 		var package_file = path.join(this.home, 'package.json');

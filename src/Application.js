@@ -138,6 +138,10 @@ Application.prototype = {
 		}
 
 		return null;
+	},
+	on: function(name, fn) {
+	},
+	un: function(name, fn) {
 	}
 };
 
