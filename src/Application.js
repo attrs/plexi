@@ -93,9 +93,16 @@ Application.prototype = {
 		for(var i=0; i < files.length; i++) {
 			var dirname = files[i];
 			var dir = path.join(this.BUNDLE_HOME, dirname);
-			
-			var bundle = new Bundle(this, dir);
-			this.bundles.add(bundle);
+
+			try {
+				var stat = fs.statSync(dir);
+				if( stat.isDirectory() ) {
+					var bundle = new Bundle(this, dir);
+					this.bundles.add(bundle);
+				}
+			} catch(e) {
+				console.log('directory [' + dir + '] was ignored because ' + e.message);
+			}
 			//console.log('detected', bundle.bundleId, bundle.version);
 		}
 	},
