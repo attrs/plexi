@@ -1,36 +1,46 @@
 {
-  "name": "bundle.system",
-  "version": "0.0.3",
-  "description": "OSGi style bundle system",
-  "author": {
-    "name": "joje",
-    "email": "joje.attrs@gmail.com",
-    "url": "https://github.com/joje6"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git://github.com/joje6/bundle.system.git"
-  },
-  "bugs": {
-    "url": "https://github.com/joje6/bundle.system/issues"
-  },
-  "main": "bundle.system.js",
-  "dependencies": {
-    "semver": "*",
-    "cli-table": "*"
-  },
-  "directories": {
-    "src": "./src"
-  },
-  "licenses": [
-    {
-      "type": "MIT",
-      "url": "http://www.opensource.org/licenses/MIT"
-    }
-  ],
-  "keywords": [
-    "osgi",
-    "bundle",
-    "plugin"
-  ]
+	"name": "bundle.system",
+	"version": "0.0.4",
+	"description": "OSGi style bundle system",
+	"author": {
+		"name": "team attributes"
+	},
+	"homepage": "https://github.com/joje6/bundle.system",
+	"repository": {
+		"type": "git",
+		"url": "git://github.com/joje6/bundle.system.git"
+	},
+	"bugs": {
+		"url": "https://github.com/joje6/bundle.system/issues"
+	},
+	"licenses": [
+		{
+		  "type": "MIT",
+		  "url": "http://www.opensource.org/licenses/MIT"
+		}
+	],
+	"main": "bundle.system.js",
+	"bin": {
+		"bundle": "bin/bs"
+	},
+	"engines": {
+		"node": ">= 0.8.0"
+	},
+	"dependencies": {
+		"semver": "*",
+		"cli-table": "*"
+	},
+	"contributors": [
+		{
+		    "name": "joje",
+		    "email": "joje.attrs@gmail.com",
+		    "url": "https://github.com/joje6"
+		}
+	],
+	"keywords": [
+		"osgi",
+		"bundle",
+		"bundles",
+		"plugin"
+	]
 }
