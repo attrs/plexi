@@ -1,14 +1,16 @@
 {
-	"name": "bundle.system",
-	"version": "0.0.4",
-	"description": "OSGi style bundle system",
+	"name": "attrs.plugins",
+	"version": "0.0.1",
+	"description": "OSGi style plugin system",
 	"author": {
-		"name": "team attributes"
+		"name": "joje",
+		"email": "joje.attrs@gmail.com",
+		"url": "https://github.com/joje6"
 	},
-	"homepage": "https://github.com/joje6/bundle.system",
+	"homepage": "https://github.com/attrs/attrs.plugins",
 	"repository": {
 		"type": "git",
-		"url": "git://github.com/joje6/bundle.system.git"
+		"url": "git://github.com/attrs/attrs.plugins.git"
 	},
 	"bugs": {
 		"url": "https://github.com/joje6/bundle.system/issues"
@@ -19,7 +21,7 @@
 		  "url": "http://www.opensource.org/licenses/MIT"
 		}
 	],
-	"main": "bundle.system.js",
+	"main": "main.js",
 	"bin": {
 		"bundle": "bin/bs"
 	},
