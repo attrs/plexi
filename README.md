@@ -1,11 +1,11 @@
-## bundle.system
-	Bundle system for nodejs
+## attrs.plugins
+	plugin system for nodejs
 
 ### Installation
 
-	npm install bundle.system
+	npm install attrs.plugins
 
 ### Usage
-	var bs = require('bundle.system');
+	var bs = require('attrs.plugins');
 	
 	... usage & examples will be updated soon ...
