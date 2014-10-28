@@ -367,6 +367,13 @@ Bundle.prototype = {
 		
 		console.log('* starting ' + this.identity + '...');
 		
+		var ctx = this.ctx;
+		var imports = this.imports;
+		for(var bundleId in imports) {
+			if( bundleId === this.bundleId ) continue;
+			ctx.require(bundleId);
+		}
+		
 		var activator = this.activator;
 		var result;
 		if( activator && typeof(activator.start) === 'function' ) {
