@@ -1,6 +1,6 @@
 {
 	"name": "attrs.plugins",
-	"version": "0.0.1",
+	"version": "0.0.1a",
 	"description": "OSGi style plugin module system",
 	"author": {
 		"name": "joje",
