@@ -1,7 +1,7 @@
 {
 	"name": "attrs.plugins",
 	"version": "0.0.1",
-	"description": "OSGi style plugin system",
+	"description": "OSGi style plugin module system",
 	"author": {
 		"name": "joje",
 		"email": "joje.attrs@gmail.com",

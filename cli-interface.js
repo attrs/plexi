@@ -1,11 +1,12 @@
 var Table = require('cli-table');
 var Application = require('./src/Application.js');
 
-var CLInterface = function CLInterface() {
-	this.apps = {};
-};
+var CLInterface = function CLInterface() {};
 
 CLInterface.prototype = {
+	application: function(app) {
+		this.application = app;
+	},
 	stop: function() {
 		this.stopped = true;
 		process.stdin.pause();
@@ -22,34 +23,9 @@ CLInterface.prototype = {
 
 			text = text.replace(/[\n\r]/g, '').trim();
 			
-			var app = self.selected;
+			var app = self.application;
 			
-			if( text === 'switch' || text === 'use' ) {
-				console.error('USAGE: "' + text + ' (applicationId)"');
-			} else if( text.startsWith('switch ') || text.startsWith('use ') ) {
-				var appname = text.substring(text.indexOf(' ') + 1);
-				
-				try {
-					self.select(appname);
-					console.log('switched to [' + appname + ']');
-				} catch(err) {
-					console.error('application [' + appname + '] does not exists', err);
-				}
-			} else if( text === 'apps' || text === 'applications' ) {
-				var table = new Table({
-					chars: { 'top': '' , 'top-mid': '' , 'top-left': '' , 'top-right': ''
-						, 'bottom': '' , 'bottom-mid': '' , 'bottom-left': '' , 'bottom-right': ''
-						, 'left': '' , 'left-mid': '' , 'mid': '' , 'mid-mid': ''
-						, 'right': '' , 'right-mid': '' , 'middle': ' ' },
-					 style: { compact : true, 'padding-left' : 1 }
-				});
-
-				for(var k in self.apps) {
-					table.push([k + '  ', app.name + '  ', app.HOME]);
-				}
-
-				console.log(table.toString());
-			} else if( text === 'profile' || text === 'p' ) {
+			if( text === 'profile' || text === 'p' ) {
 				if( !app ) return console.log('application not selected');
 
 				var table = new Table({
@@ -60,8 +36,6 @@ CLInterface.prototype = {
 					 style: { compact : true, 'padding-left' : 1 }
 				});
 
-				table.push(['applicationId  ', app.applicationId]);
-				table.push(['name  ', app.name]);
 				table.push(['home  ', app.HOME]);
 				table.push(['preference.file  ', app.PREFERENCE_FILE]);
 				table.push(['bundle.home  ', app.BUNDLE_HOME]);
@@ -124,8 +98,6 @@ CLInterface.prototype = {
 					 style: { compact : true, 'padding-left' : 1 }
 				});
 				
-				table.push(['apps || applications', 'show application list']);
-				table.push(['use {appid} || switch {appid}', 'switching application']);
 				table.push(['profile || p', 'show system profile']);
 				table.push(['ss || status || list || ls', 'show bundle status list']);
 				table.push(['start {index}', 'start bundle']);
@@ -142,29 +114,9 @@ CLInterface.prototype = {
 				console.log('"' + text + '" is unknown command.');
 			}
 			
-			if( app ) process.stdout.write(app.applicationId + '> ');
+			if( app ) process.stdout.write('attrs.plugins> ');
 			else process.stdout.write('> ');
 		});
-	},
-	
-	add: function(app) {
-		if( !(app instanceof Application) ) throw new Error('invalid application');
-
-		this.apps[app.applicationId] = app;
-		if( !this.selected ) this.select(app);
-	},
-	remove: function(app) {
-		if( app instanceof Application ) app = app.applicationId;
-		if( typeof(app) !== 'string' ) throw new Error('invalid application id');
-		delete this.apps[app];
-	},
-	select: function(app) {
-		if( app instanceof Application ) app = app.applicationId;
-		if( typeof(app) !== 'string' ) throw new Error('invalid application id');
-
-		if( !this.apps[app] ) throw new Error('not exists application:' + app);
-
-		this.selected = this.apps[app];
 	}
 }
 

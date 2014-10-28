@@ -29,7 +29,7 @@ if( !String.prototype.trim ) {
 var Application = function Application(home_dir, bundle_dir, workspace_dir, log_dir) {
 	this.HOME = home_dir;
 	this.PREFERENCE_FILE = path.join(this.HOME, 'application.json');	
-	this.BUNDLE_HOME = bundle_dir || path.join(this.HOME, 'bundles');
+	this.BUNDLE_HOME = bundle_dir || path.join(this.HOME, 'plugins');
 	this.WORKSPACE_HOME = workspace_dir || path.join(this.HOME, 'workspace');
 	this.LOG_DIR = log_dir || path.join(this.HOME, 'logs');
 
@@ -42,48 +42,42 @@ Application.prototype = {
 	load: function load() {		
 		var pref_file = this.PREFERENCE_FILE;
 		
-		if( !fs.statSync(pref_file).isFile() ) 
-			throw new ApplicationError('application_load_error:file_not_found:' + pref_file);
+		if( fs.existsSync(pref_file) && fs.statSync(pref_file).isFile() ) {
+			var preference = fs.readFileSync(pref_file, 'utf-8');
 
-		var preference = fs.readFileSync(pref_file, 'utf-8');
-		if( !preference )
-			throw new ApplicationError('application_load_error:empty_file:' + pref_file);
+			try {
+				var o = JSON.parse(preference);
+				
+				if( typeof(o) !== 'object' )
+					throw new ApplicationError('application_load_error:preference_invalid:' + pref_file);
+				
+				var props = o.properties;
 
-		try {
-			var o = JSON.parse(preference);
-			var applicationId = o.applicationId + '';
-			var name = o.name + '';
-			var props = o.properties;
-
-			if( props ) {
-				for(var k in props) {
-					var value = props[k] || '';
-					preference = preference.split('{' + k + '}').join(value);
+				if( props ) {
+					for(var k in props) {
+						var value = props[k] || '';
+						preference = preference.split('{' + k + '}').join(value);
+					}
 				}
+
+				preference = preference.split('{home}').join(this.HOME);
+				preference = preference.split('{preference.file}').join(this.PREFERENCE_FILE);
+				preference = preference.split('{workspace.home}').join(this.WORKSPACE_HOME);
+				preference = preference.split('{bundle.home}').join(this.BUNDLE_HOME);
+				preference = preference.split('{log.dir}').join(this.LOG_DIR);
+				preference = preference.split('\\').join('/');
+
+				preference = JSON.parse(preference);
+			} catch(err) {
+				throw new ApplicationError('application_load_error:config_file_parse:' + pref_file + ':' + err.message, err);
 			}
-
-			preference = preference.split('{home}').join(this.HOME);
-			preference = preference.split('{applicationId}').join(applicationId);
-			preference = preference.split('{name}').join(name);
-			preference = preference.split('{preference.file}').join(this.PREFERENCE_FILE);
-			preference = preference.split('{workspace.home}').join(this.WORKSPACE_HOME);
-			preference = preference.split('{bundle.home}').join(this.BUNDLE_HOME);
-			preference = preference.split('{log.dir}').join(this.LOG_DIR);
-			preference = preference.split('\\').join('/');
-
-			preference = JSON.parse(preference);
-		} catch(err) {
-			throw new ApplicationError('application_load_error:config_file_parse:' + pref_file + ':' + err.message, err);
+		
+			// setup instance attributes
+			this.preference = preference;
+		} else {
+			this.preference = {};
 		}
 		
-		if( typeof(preference.applicationId) !== 'string' ) new ApplicationError('preference_error:application.applicationId', preference);
-		if( typeof(preference.name) !== 'string' ) new ApplicationError('preference_error:application.name:', preference);
-		if( typeof(preference.bundles) !== 'object' ) new ApplicationError('preference_error:application.bundles', preference);
-		
-		// setup instance attributes
-		this.applicationId = preference.applicationId;
-		this.name = preference.name;		
-		this.preference = preference;
 		this.bundles = new BundleGroups();
 		this.workspaces = {};
 	},
@@ -92,31 +86,27 @@ Application.prototype = {
 
 		for(var i=0; i < files.length; i++) {
 			var dirname = files[i];
+			
+			if( dirname.startsWith('-') ) continue;
+			
 			var dir = path.join(this.BUNDLE_HOME, dirname);
 
-			try {
-				var stat = fs.statSync(dir);
-				if( stat.isDirectory() ) {
-					var bundle = new Bundle(this, dir);
-					this.bundles.add(bundle);
-				}
-			} catch(e) {
-				console.log('directory [' + dir + '] was ignored because ' + e.message);
+			var stat = fs.statSync(dir);
+			if( stat.isDirectory() ) {
+				var bundle = new Bundle(this, dir);
+				this.bundles.add(bundle);
+				
+				console.log('* detected', bundle.bundleId, bundle.version);
 			}
-			//console.log('detected', bundle.bundleId, bundle.version);
 		}
 	},
 	start: function start() {
 		var preference = this.preference;
-		
-		for(var id in preference.bundles) {
-			var bundle_pref = preference.bundles[id];
-			var version = bundle_pref.version;
-			var bundle = this.bundles.get(id, version);
-			
-			if( !bundle ) throw new ApplicationError('bundle [' + id + '-' + version + '] does not exists.');
-
-			bundle.start();
+		var bundles = this.bundles.groups;
+				
+		for(var id in bundles) {
+			var bundle = this.bundles.get(id);
+			if( bundle.status === Bundle.STATUS_DETECTED ) bundle.start();
 		}
 	},
 	getBundleWorkspace: function(bundleId) {
@@ -138,7 +128,7 @@ Application.prototype = {
 	},
 	getBundleOptions: function(bundleId, version) {
 		if( this.preference ) {
-			var bundle_pref = this.preference.bundles[bundleId];
+			var bundle_pref = this.preference[bundleId];
 			if( bundle_pref ) {
 				return JSON.parse(JSON.stringify(bundle_pref)).options;
 			}

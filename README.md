@@ -1,5 +1,5 @@
 ## attrs.plugins
-	plugin system for nodejs
+	plugin module system for nodejs
 
 ### Installation
 

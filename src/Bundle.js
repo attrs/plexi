@@ -10,16 +10,24 @@ var ApplicationError = require('./ApplicationError.js');
 var BundleContext = function BundleContext(bundle) {
 	Object.defineProperty(this, 'bundle', {
 		value: bundle,
-		enumerable: false,
+		enumerable: true,
 		configurable: false,
 		writable: false
 	});
-
-	Object.defineProperty(this, 'applicationId', {
+	
+	Object.defineProperty(this, 'identity', {
 		enumerable: true,
 		configurable: false,
 		get: function() {
-			return bundle.application.applicationId;
+			return bundle.identity;
+		}
+	});
+	
+	Object.defineProperty(this, 'options', {
+		enumerable: true,
+		configurable: false,
+		get: function() {
+			return bundle.options;
 		}
 	});
 
@@ -68,6 +76,9 @@ BundleContext.prototype = {
 	on: function(event, fn) {
 		this.bundle.application.on(event, fn);
 	},
+	off: function(event, fn) {
+		this.bundle.application.off(event, fn);
+	},
 	require: function(bundleId) {
 		var caller = this.bundle;
 		
@@ -110,7 +121,7 @@ BundleContext.prototype = {
 var BundleIdentity = function BundleIdentity(name) {
 	if( !name || typeof(name) !== 'string' ) throw new ApplicationError('invalid bundle identity:' + name);
 
-	var pos = name.indexOf('-');
+	var pos = name.lastIndexOf('-');
 	var bundleId = name;
 	var version;
 
@@ -216,7 +227,9 @@ var Bundle = function Bundle(application, dir) {
 
 Bundle.STATUS_DETECTED = 'detected';
 Bundle.STATUS_STARTED = 'started';
+Bundle.STATUS_STARTING = 'starting';
 Bundle.STATUS_STOPPED = 'stopped';
+Bundle.STATUS_STOPPING = 'stopping';
 Bundle.STATUS_ERROR = 'error';
 Bundle.TYPE_SERVICE = 'service';
 Bundle.TYPE_LIBRARY = 'library';
@@ -227,79 +240,88 @@ Bundle.prototype = {
 		return path.join(this.home, f);
 	},
 	detect: function detect() {
-		var manifest_file = path.join(this.home, 'bundle.json');
-		var package_file = path.join(this.home, 'package.json');
+		var manifest_file = path.join(this.home, 'package.json');
 		
 		if( fs.existsSync(manifest_file) ) {
 			var manifest = fs.readFileSync(manifest_file, 'utf-8');
 			if( !manifest )
-				throw new ApplicationError('bundle_manifest_error:bundle_manifest_not_found:' + this.identity + ':' + manifest_file);
+				throw new ApplicationError('bundle_manifest_error:package_json_not_found:' + this.identity + ':' + manifest_file);
 
 			try {
 				manifest = JSON.parse(manifest);
 			} catch(err) {
-				throw new ApplicationError('bundle_manifest_error:bundle_manifest_file_parse:' + this.identity + ':' + manifest_file + ':' + err.message, err);
+				throw new ApplicationError('bundle_manifest_error:package_json_parse_error:' + this.identity + ':' + manifest_file + ':' + err.message, err);
 			}
 
-			if( typeof(manifest.bundleId) !== 'string' ) throw new ApplicationError('bundle_manifest_error:manifest.bundleId:' + this.identity, manifest);
-			if( typeof(manifest.version) !== 'string' ) throw new ApplicationError('bundle_manifest_error:manifest.version:' + this.identity, manifest);
-			if( typeof(manifest.activator) !== 'string' ) throw new ApplicationError('bundle_manifest_error:manifest.activator:' + this.identity, manifest);
+			if( typeof(manifest.name) !== 'string' ) throw new ApplicationError('bundle_manifest_error:manifest.name(bundleId):' + this.identity.toString(), manifest);
+			if( typeof(manifest.version) !== 'string' ) throw new ApplicationError('bundle_manifest_error:manifest.version:' + this.identity.toString(), manifest);
+			if( typeof(manifest.activator) !== 'string' ) throw new ApplicationError('bundle_manifest_error:manifest.activator:' + this.identity.toString(), manifest);
 
-			if( manifest.bundleId != this.bundleId ) throw new ApplicationError('bundle_manifest_error:bundleId_does_not_match:' + this.identity, manifest);
-			if( manifest.version != this.version ) throw new ApplicationError('bundle_manifest_error:version_does_not_match:' + this.identity, manifest);
+			if( manifest.name != this.bundleId ) throw new ApplicationError('bundle_manifest_error:bundleId(name)_does_not_match:' + this.identity.toString(), manifest);
+			if( manifest.version != this.version ) throw new ApplicationError('bundle_manifest_error:version_does_not_match:' + this.identity.toString(), manifest);
 			
-			var activator = require(path.join(this.home, manifest.activator));
-
-			if( typeof(activator) === 'function' ) activator = {start:activator};
-			if( !activator ) activator = {};
-			if( !activator.start ) activator.start = function empty_start() {};
-			if( typeof(activator.start) !== 'function' ) throw new ApplicationError('activator_error:invalid_start_function');
-
-			var options = this.application.getBundleOptions(this.bundleId, this.version) || {};
+			var application = this.application;
+			var options = this.application.getBundleOptions(this.bundleId, this.version) || {};	
+			var activator = null;
+			var exports = {};
+			var imports = manifest.imports || {};
+						
+			if( manifest.activator ) {
+				activator = require(path.join(this.home, manifest.activator));
+				
+				if( typeof(activator) === 'function' ) {
+					activator = {start:activator};
+				} else if( typeof(activator) === 'object' ) {
+					if( typeof(activator.start) !== 'function' ) {
+						activator = null;
+						console.error('activator.start must be a function', this.identity.toString());
+					}
+					
+					if( activator.stop && typeof(activator.stop) !== 'function' ) {
+						activator.stop = null;
+						console.error('activator.stop must be a function', this.identity.toString());
+					}
+				} else {
+					activator = null;
+					console.error('activator not found. ignored', this.identity.toString());
+				}
+			}
+			
+			var type = activator ? Bundle.TYPE_SERVICE : Bundle.TYPE_LIBRARY;
 			
 			Object.defineProperty(this, 'activator', {
 				value: activator,
 				enumerable: true,
-				configurable: true,
+				configurable: false,
 				writable: false
 			});
 
 			Object.defineProperty(this, 'manifest', {
 				value: manifest,
 				enumerable: true,
-				configurable: true,
-				writable: false
-			});
-
-			Object.defineProperty(this, 'type', {
-				value: Bundle.TYPE_SERVICE,
-				enumerable: true,
-				configurable: true,
+				configurable: false,
 				writable: false
 			});
 
 			Object.defineProperty(this, 'options', {
 				value: options,
 				enumerable: true,
-				configurable: true,
+				configurable: false,
 				writable: false
 			});
 			
-			var exports = {};
 			Object.defineProperty(this, 'exports', {
 				enumerable: true,
-				configurable: true,
+				configurable: false,
 				get: function() {
 					return exports;
 				},
 				set: function(o) {
-					if( typeof(o) !== 'object' ) throw new ApplicationError('bundle.exports must be an object');
+					//if( typeof(o) !== 'object' ) throw new ApplicationError('bundle.exports must be an object');
 					exports = o;
 				}
 			});
 			
-			var application = this.application;
-			var imports = manifest.imports || {};
 			Object.defineProperty(this, 'imports', {
 				enumerable: true,
 				configurable: true,
@@ -316,30 +338,12 @@ Bundle.prototype = {
 					return result;
 				}
 			});
-		} else if( fs.existsSync(package_file) ) {
+			
 			Object.defineProperty(this, 'type', {
-				value: Bundle.TYPE_LIBRARY,
+				value: type,
 				enumerable: true,
 				configurable: true,
 				writable: false
-			});
-
-			var exports = require(this.home) || {};
-			Object.defineProperty(this, 'exports', {
-				enumerable: true,
-				configurable: true,
-				get: function() {
-					return exports;
-				}
-			});
-			
-			var imports = {};
-			Object.defineProperty(this, 'imports', {
-				enumerable: true,
-				configurable: true,
-				get: function() {
-					return imports;
-				}
 			});
 		} else {
 			Object.defineProperty(this, 'type', {
@@ -360,13 +364,16 @@ Bundle.prototype = {
 			console.warn('cannot_start:already_started:' + this.identity + ':' + this.version);
 			return;
 		}
-
+		
+		console.log('* starting ' + this.identity + '...');
+		
 		var activator = this.activator;
 		var result;
 		if( activator && typeof(activator.start) === 'function' ) {
 			result = activator.start.apply(this, [this.ctx]);
 
 			if( typeof(result) === 'function' ) {
+				this.status = Bundle.STATUS_STARTING;
 				var self = this;
 				result(function(err) {
 					if( err ) {
@@ -384,6 +391,8 @@ Bundle.prototype = {
 		} else {
 			this.status = Bundle.STATUS_STARTED;
 		}
+		
+		console.log('* started ' + this.identity);
 
 		return result;
 	},
