@@ -127,9 +127,12 @@ Application.prototype = {
 				version = name.substring(pos + 1);
 			}
 			
-			var plugin = exists(pluginId, version);
-			if( !plugin ) console.log('* plugin exists', pluginId, version);
-			else 
+			var plugin = plugins.get(pluginId, version);
+			if( !plugin ) {
+				this.install(pluginId, version, function(err, result) {
+				
+				});
+			}
 		}
 		
 		for(var id in plugins.groups) {
