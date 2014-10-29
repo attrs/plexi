@@ -2,7 +2,7 @@ var path = require('path');
 var fs = require('fs');
 var semver = require('semver');
 
-var Bundle = require('./Bundle.js');
+var Plugin = require('./Plugin.js');
 var ApplicationError = require('./ApplicationError.js');
 
 if( !String.prototype.startsWith ) {
@@ -26,47 +26,49 @@ if( !String.prototype.trim ) {
 	};
 }
 
-var Application = function Application(home_dir, bundle_dir, workspace_dir, log_dir) {
-	this.HOME = home_dir;
-	this.PREFERENCE_FILE = path.join(this.HOME, 'plexi.json');	
-	this.BUNDLE_HOME = bundle_dir || path.join(this.HOME, 'plugins');
-	this.WORKSPACE_HOME = workspace_dir || path.join(this.HOME, 'workspace');
-	this.LOG_DIR = log_dir || path.join(this.HOME, 'logs');
-
-	this.load();
+var Application = function Application(homedir, properties) {
+	if( !homedir ) throw new Error('missing home directory', homedir);
+	
+	if( typeof(properties) !== 'object' ) properties = {};
+	this.properties = properties || {};
+	this.load(homedir);
 	this.detect();
 	this.start();
 };
 
 Application.prototype = {
-	load: function load() {		
-		var pref_file = this.PREFERENCE_FILE;
+	load: function load(homedir) {		
+		var pref_file = path.join(homedir, 'plexi.json');
+		
+		this.HOME = homedir;
+		this.PREFERENCE_FILE = pref_file;
 		
 		if( fs.existsSync(pref_file) && fs.statSync(pref_file).isFile() ) {
 			var preference = fs.readFileSync(pref_file, 'utf-8');
+			var env = preference.env || {};
+			
+			this.PLUGINS_DIR = path.join(this.HOME, env.plugins || 'plugins');
+			this.WORKSPACE_DIR = path.join(this.HOME, env.workspace || 'workspace');
+			this.LOG_DIR = path.join(this.HOME, env.logs || 'logs');
+			
+			if( !fs.existsSync(this.PLUGINS_DIR) ) fs.mkdirSync(this.PLUGINS_DIR);
+			if( !fs.existsSync(this.WORKSPACE_DIR) ) fs.mkdirSync(this.WORKSPACE_DIR);
+			if( !fs.existsSync(this.LOG_DIR) ) fs.mkdirSync(this.LOG_DIR);
 
-			try {
-				var o = JSON.parse(preference);
-				
-				if( typeof(o) !== 'object' )
-					throw new ApplicationError('application_load_error:preference_invalid:' + pref_file);
-				
-				var props = o.properties;
+			try {				
+				var props = this.properties;				
+				props['home'] = this.HOME;
+				props['preference.file'] = this.PREFERENCE_FILE;
+				props['workspace.dir'] = this.WORKSPACE_DIR;
+				props['plugins.dir'] = this.PLUGINS_DIR;
+				props['log.dir'] = this.LOG_DIR;
 
-				if( props ) {
-					for(var k in props) {
-						var value = props[k] || '';
-						preference = preference.split('{' + k + '}').join(value);
-					}
+				for(var k in props) {
+					var value = props[k] || '';
+					preference = preference.split('{' + k + '}').join(value);
 				}
-
-				preference = preference.split('{home}').join(this.HOME);
-				preference = preference.split('{preference.file}').join(this.PREFERENCE_FILE);
-				preference = preference.split('{workspace.home}').join(this.WORKSPACE_HOME);
-				preference = preference.split('{bundle.home}').join(this.BUNDLE_HOME);
-				preference = preference.split('{log.dir}').join(this.LOG_DIR);
+				
 				preference = preference.split('\\').join('/');
-
 				preference = JSON.parse(preference);
 			} catch(err) {
 				throw new ApplicationError('application_load_error:config_file_parse:' + pref_file + ':' + err.message, err);
@@ -78,73 +80,106 @@ Application.prototype = {
 			this.preference = {};
 		}
 		
-		this.bundles = new BundleGroups();
+		this.plugins = new PluginGroups();
 		this.workspaces = {};
 	},
 	detect: function detect() {
-		var files = fs.readdirSync(this.BUNDLE_HOME);
+		var files = fs.readdirSync(this.PLUGINS_DIR);
 
 		for(var i=0; i < files.length; i++) {
-			var dirname = files[i];
+			var dirname = files[i];			
+			if( dirname.startsWith('-') || !~dirname.indexOf('@') ) continue;
 			
-			if( dirname.startsWith('-') ) continue;
-			
-			var dir = path.join(this.BUNDLE_HOME, dirname);
+			var dir = path.join(this.PLUGINS_DIR, dirname);
 
 			var stat = fs.statSync(dir);
 			if( stat.isDirectory() ) {
-				var bundle = new Bundle(this, dir);
-				this.bundles.add(bundle);
-				
-				console.log('* detected', bundle.bundleId, bundle.version);
+				var plugin = new Plugin(this, dir);
+				this.plugins.add(plugin);				
+				console.log('* detected', plugin.pluginId, plugin.version);
+				this.fire('detected', {plugin:plugin});
 			}
 		}
 	},
+	install: function install(pluginId, version, fn) {
+		console.log('* plugin install', pluginId, version);
+	},
+	uninstall: function uninstall(pluginId, version, fn) {
+		console.log('* plugin install', pluginId, version);
+	},
+	exists: function exists(pluginId, version) {
+		return (this.plugins.get(pluginId, version) ) ? true : false;
+	},
 	start: function start() {
 		var preference = this.preference;
-		var bundles = this.bundles.groups;
-				
-		for(var id in bundles) {
-			var bundle = this.bundles.get(id);
-			if( bundle.status === Bundle.STATUS_DETECTED ) bundle.start();
+		var plugins = this.plugins;
+		
+		// install & update
+		for(var name in preference) {
+			if( !preference.hasOwnProperty(name) ) continue;
+			
+			var pos = name.lastIndexOf('@');
+			var pluginId = name;
+			var version;
+
+			if( pos > 0 ) {
+				pluginId = name.substring(0, pos);
+				version = name.substring(pos + 1);
+			}
+			
+			var plugin = exists(pluginId, version);
+			if( !plugin ) console.log('* plugin exists', pluginId, version);
+			else 
+		}
+		
+		for(var id in plugins.groups) {
+			var plugin = plugins.get(id);
+			if( plugin.status === Plugin.STATUS_DETECTED ) plugin.start();
 		}
 	},
-	getBundleWorkspace: function(bundleId) {
-		if( !bundleId ) throw new ApplicationError('missing:bundleId');
+	workspace: function(pluginId) {
+		if( !pluginId ) throw new ApplicationError('missing:pluginId');
 
-		if( typeof(bundleId) === 'object' && bundleId.bundleId ) {
-			bundleId = bundleId.bundleId;
+		if( typeof(pluginId) === 'object' && pluginId.pluginId ) {
+			pluginId = pluginId.pluginId;
 		}
 
-		if( typeof(bundleId) !== 'string' ) throw new ApplicationError('invalid:bundleId:' + bundleId);
+		if( typeof(pluginId) !== 'string' ) throw new ApplicationError('invalid:pluginId:' + pluginId);
 
-		var ws = this.workspaces[bundleId];
+		var ws = this.workspaces[pluginId];
 		if( !ws ) {
-			ws = new Workspace(path.join(this.WORKSPACE_HOME, bundleId));
-			this.workspaces[bundleId] = ws;
+			ws = new Workspace(path.join(this.WORKSPACE_DIR, pluginId));
+			this.workspaces[pluginId] = ws;
 		}
 
 		return ws;
 	},
-	getBundleOptions: function(bundleId, version) {
-		if( this.preference ) {
-			var bundle_pref = this.preference[bundleId];
-			if( bundle_pref ) {
-				return JSON.parse(JSON.stringify(bundle_pref)).options;
+	options: function(pluginId, version) {
+		if( this.preference ) {			
+			var plugin_pref = this.preference[pluginId];
+			
+			if( version ) {
+				plugin_pref = this.preference[pluginId + '@' + version] || plugin_pref;
+			}
+			
+			if( plugin_pref ) {
+				return JSON.parse(JSON.stringify(plugin_pref));
 			}
 		}
 
 		return null;
 	},
-	on: function(name, fn) {
+	on: function(type, fn) {
 	},
-	un: function(name, fn) {
+	un: function(type, fn) {
+	},
+	fire: function(type, values) {		
 	}
 };
 
 
 
-// Bundle Workspace
+// Plugin Workspace
 var Workspace = function Workspace(dir) {
 	this.dir = dir;
 };
@@ -175,49 +210,49 @@ Workspace.prototype = {
 
 
 
-// Bundle Groups
-var BundleGroups = function BundleGroups() {
+// Plugin Groups
+var PluginGroups = function PluginGroups() {
 	this.groups = {};
 };
 
-BundleGroups.prototype = {
-	add: function(bundle) {
-		if( bundle instanceof Bundle ) {
-			var id = bundle.bundleId;
+PluginGroups.prototype = {
+	add: function(plugin) {
+		if( plugin instanceof Plugin ) {
+			var id = plugin.pluginId;
 			var group = this.groups[id];
 			if( !group ) {
-				group = new BundleGroup(id);
+				group = new PluginGroup(id);
 				this.groups[id] = group;
 			}
 			
-			group.add(bundle);
+			group.add(plugin);
 		} else {
-			throw new ApplicationError('invalid_bundle', bundle);
+			throw new ApplicationError('invalid_plugin', plugin);
 		}
 	},
-	all: function(bundleId) {
+	all: function(pluginId) {
 		var arg = [];
 		
 		if( arguments.length <= 0 ) {
-			for(var bundleId in this.groups) {
-				var group = this.groups[bundleId];
+			for(var pluginId in this.groups) {
+				var group = this.groups[pluginId];
 				if( group ) {
-					var bundles = group.all();
-					if( bundles && bundles.length > 0 ) arg = arg.concat(bundles);
+					var plugins = group.all();
+					if( plugins && plugins.length > 0 ) arg = arg.concat(plugins);
 				}
 			}
 		} else {
-			var group = this.groups[bundleId];
+			var group = this.groups[pluginId];
 			if( group ) {
-				var bundles = group.all();
-				if( bundles && bundles.length > 0 ) arg = arg.concat(bundles);
+				var plugins = group.all();
+				if( plugins && plugins.length > 0 ) arg = arg.concat(plugins);
 			}
 		}
 
 		return arg;
 	},
-	get: function(bundleId, version) {
-		var group = this.groups[bundleId];
+	get: function(pluginId, version) {
+		var group = this.groups[pluginId];
 		if( group ) {
 			return group.get(version);
 		}
@@ -226,12 +261,12 @@ BundleGroups.prototype = {
 	}
 };
 
-var BundleGroup = function BundleGroup(bundleId) {
-	this.bundleId = bundleId;
-	this.bundles = [];
+var PluginGroup = function PluginGroup(pluginId) {
+	this.pluginId = pluginId;
+	this.plugins = [];
 };
 
-BundleGroup.prototype = {
+PluginGroup.prototype = {
 	/*
 	*
 	>1.0
@@ -242,38 +277,38 @@ BundleGroup.prototype = {
 	1.*
 	*/
 	get: function(match) {
-		if( !match || match === '*' ) return this.bundles[0];
+		if( !match || match === '*' ) return this.plugins[0];
 
-		for(var i=0; i < this.bundles.length; i++) {
-			var bundle = this.bundles[i];
-			var version = bundle.version;
+		for(var i=0; i < this.plugins.length; i++) {
+			var plugin = this.plugins[i];
+			var version = plugin.version;
 
 			if( semver.satisfies(version, match) ) {
-				return bundle;
+				return plugin;
 			}
 		}
 
 		return null;
 	},
 	master: function() {
-		return this.bundles[0];
+		return this.plugins[0];
 	},
 	all: function() {
-		return this.bundles;
+		return this.plugins;
 	},
-	add: function(bundle) {
-		if( (bundle instanceof Bundle) && bundle.bundleId === this.bundleId ) {
-			this.bundles.push(bundle);
+	add: function(plugin) {
+		if( (plugin instanceof Plugin) && plugin.pluginId === this.pluginId ) {
+			this.plugins.push(plugin);
 
-			this.bundles.sort(function compare(a, b) {
+			this.plugins.sort(function compare(a, b) {
 				return semver.compare(b.version, a.version);
 			});
 		} else {
-			throw new ApplicationError('incompatible_bundle:' + bundle.bundleId, bundle);
+			throw new ApplicationError('incompatible_plugin:' + plugin.pluginId, plugin);
 		}
 	},
 	toString: function() {
-		return '[group:' + this.bundleId + ':' + this.bundles.length + ']';
+		return '[group:' + this.pluginId + ':' + this.plugins.length + ']';
 	}
 };
 

@@ -38,8 +38,8 @@ CLInterface.prototype = {
 
 				table.push(['home  ', app.HOME]);
 				table.push(['preference.file  ', app.PREFERENCE_FILE]);
-				table.push(['bundle.home  ', app.BUNDLE_HOME]);
-				table.push(['workspace.home  ', app.WORKSPACE_HOME]);
+				table.push(['plugins.dir  ', app.PLUGINS_DIR]);
+				table.push(['workspace.dir  ', app.WORKSPACE_DIR]);
 				table.push(['log.dir  ', app.LOG_DIR]);
 
 				console.log(table.toString());
@@ -54,11 +54,11 @@ CLInterface.prototype = {
 					 style: { compact : true, 'padding-left' : 1 }
 				});
 
-				var bundles = app.bundles.all();
-				if( bundles && bundles.length > 0 ) {
-					for(var i=0; i < bundles.length; i++) {
-						var bundle = bundles[i];
-						table.push([i + '  ', '' + bundle.status + '  ', bundle.bundleId + '  ', bundle.version, bundle.type + ' ']);
+				var plugins = app.plugins.all();
+				if( plugins && plugins.length > 0 ) {
+					for(var i=0; i < plugins.length; i++) {
+						var plugin = plugins[i];
+						table.push([i + '  ', '' + plugin.status + '  ', plugin.pluginId + '  ', plugin.version, plugin.type + ' ']);
 					}
 				} else {
 					console.log('nothing');
@@ -70,25 +70,25 @@ CLInterface.prototype = {
 			} else if( text === 'stop' ) {
 				console.error('USAGE: "' + text + ' (index)"');
 			} else if( text === 'install' ) {
-				console.error('USAGE: "' + text + ' (bundleId) [(version)]"');
+				console.error('USAGE: "' + text + ' (pluginId) [(version)]"');
 			} else if( text === 'uninstall' ) {
-				console.error('USAGE: "' + text + ' (bundleId) [(version)]"');
+				console.error('USAGE: "' + text + ' (pluginId) [(version)]"');
 			} else if( text.startsWith('start ') ) {
 				if( !app ) return console.log('application not selected');
 
-				console.log('start bundle');
+				console.log('start plugin');
 			} else if( text.startsWith('stop ') ) {
 				if( !app ) return console.log('application not selected');
 
-				console.log('stop bundle');
+				console.log('stop plugin');
 			} else if( text.startsWith('install ') ) {
 				if( !app ) return console.log('application not selected');
 
-				console.log('install bundle');
+				console.log('install plugin');
 			} else if( text.startsWith('uninstall ') ) {
 				if( !app ) return console.log('application not selected');
 
-				console.log('uninstall bundle');
+				console.log('uninstall plugin');
 			} else if( text === 'help' || text === 'h' || text === '?' ) {
 				var table = new Table({
 					chars: { 'top': '' , 'top-mid': '' , 'top-left': '' , 'top-right': ''
@@ -99,13 +99,13 @@ CLInterface.prototype = {
 				});
 				
 				table.push(['profile || p', 'show system profile']);
-				table.push(['ss || status || list || ls', 'show bundle status list']);
-				table.push(['start {index}', 'start bundle']);
-				table.push(['stop {index}', 'stop bundle']);
-				table.push(['stop all', 'stop all bundles']);
-				table.push(['install {bundleId} {version}', 'install new bundle']);
-				table.push(['uninstall {bundleId} {version}', 'uninstall selected bundle']);
-				table.push(['quit || q || exit || bye', 'quit bundle.system']);
+				table.push(['ss || status || list || ls', 'show plugin status list']);
+				table.push(['start {index}', 'start plugin']);
+				table.push(['stop {index}', 'stop plugin']);
+				table.push(['stop all', 'stop all plugins']);
+				table.push(['install {pluginId} {version}', 'install new plugin']);
+				table.push(['uninstall {pluginId} {version}', 'uninstall selected plugin']);
+				table.push(['quit || q || exit || bye', 'quit plugin.system']);
 				table.push(['help || h || ?', 'help']);
 				console.log(table.toString());
 			} else if ( text === 'quit' || text === 'q' || text === 'exit' || text === 'exit' ) {
@@ -114,7 +114,7 @@ CLInterface.prototype = {
 				console.log('"' + text + '" is unknown command.');
 			}
 			
-			if( app ) process.stdout.write('attrs.plugins> ');
+			if( app ) process.stdout.write('plexi> ');
 			else process.stdout.write('> ');
 		});
 	}

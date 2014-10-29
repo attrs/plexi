@@ -6,10 +6,10 @@ var util = require("util");
 var ApplicationError = require('./ApplicationError.js');
 
 
-// Bundle Context
-var BundleContext = function BundleContext(bundle) {
-	Object.defineProperty(this, 'bundle', {
-		value: bundle,
+// Plugin Context
+var PluginContext = function PluginContext(plugin) {
+	Object.defineProperty(this, 'plugin', {
+		value: plugin,
 		enumerable: true,
 		configurable: false,
 		writable: false
@@ -19,7 +19,7 @@ var BundleContext = function BundleContext(bundle) {
 		enumerable: true,
 		configurable: false,
 		get: function() {
-			return bundle.identity;
+			return plugin.identity;
 		}
 	});
 	
@@ -27,15 +27,15 @@ var BundleContext = function BundleContext(bundle) {
 		enumerable: true,
 		configurable: false,
 		get: function() {
-			return bundle.options;
+			return plugin.options;
 		}
 	});
 
-	Object.defineProperty(this, 'bundleId', {
+	Object.defineProperty(this, 'pluginId', {
 		enumerable: true,
 		configurable: false,
 		get: function() {
-			return bundle.bundleId;
+			return plugin.pluginId;
 		}
 	});
 
@@ -43,7 +43,7 @@ var BundleContext = function BundleContext(bundle) {
 		enumerable: true,
 		configurable: false,
 		get: function() {
-			return bundle.version;
+			return plugin.version;
 		}
 	});
 
@@ -51,7 +51,7 @@ var BundleContext = function BundleContext(bundle) {
 		enumerable: true,
 		configurable: false,
 		get: function() {
-			return bundle.home;
+			return plugin.home;
 		}
 	});
 
@@ -59,35 +59,35 @@ var BundleContext = function BundleContext(bundle) {
 		enumerable: true,
 		configurable: false,
 		get: function() {
-			return bundle.workspace;
+			return plugin.workspace;
 		}
 	});
 
-	Object.defineProperty(this, 'bundles', {
+	Object.defineProperty(this, 'plugins', {
 		enumerable: true,
 		configurable: false,
 		get: function() {
-			return bundle.application.bundles;
+			return plugin.application.plugins;
 		}
 	});
 };
 
-BundleContext.prototype = {
+PluginContext.prototype = {
 	on: function(event, fn) {
-		this.bundle.application.on(event, fn);
+		this.plugin.application.on(event, fn);
 	},
 	off: function(event, fn) {
-		this.bundle.application.off(event, fn);
+		this.plugin.application.off(event, fn);
 	},
-	require: function(bundleId) {
-		var caller = this.bundle;
+	require: function(pluginId) {
+		var caller = this.plugin;
 		
-		var bundle = caller.imports[bundleId];
-		if( bundle ) {
-			if( bundle.type == Bundle.TYPE_SERVICE ) {					
-				if( bundle.status !== Bundle.STATUS_STARTED ) bundle.start();
+		var plugin = caller.imports[pluginId];
+		if( plugin ) {
+			if( plugin.type == Plugin.TYPE_SERVICE ) {					
+				if( plugin.status !== Plugin.STATUS_STARTED ) plugin.start();
 
-				var exports = bundle.exports;
+				var exports = plugin.exports;
 
 				if( !exports ) return {};
 				
@@ -107,34 +107,35 @@ BundleContext.prototype = {
 
 				return result;
 			} else {
-				return bundle.exports;
+				return plugin.exports;
 			}
 		} else {
-			throw new ApplicationError('import bundle [' + bundleId + '] is not defined in bundle [' + caller.bundleId + '-' + caller.version + '] manifest file');
+			throw new ApplicationError('import plugin [' + pluginId + '] is not defined in plugin [' + caller.pluginId + '-' + caller.version + '] manifest file');
 		}
 
 		return null;
 	}
 };
 
-// Bundle Identity
-var BundleIdentity = function BundleIdentity(name) {
-	if( !name || typeof(name) !== 'string' ) throw new ApplicationError('invalid bundle identity:' + name);
+// Plugin Identity
+var PluginIdentity = function PluginIdentity(name) {
+	if( !name || typeof(name) !== 'string' ) throw new ApplicationError('invalid plugin identity:' + name);
 
-	var pos = name.lastIndexOf('-');
-	var bundleId = name;
+	var pos = name.lastIndexOf('@');
+	var pluginId = name;
 	var version;
 
 	if( pos > 0 ) {
-		bundleId = name.substring(0, pos);
-		version = semver.valid(name.substring(pos + 1));
+		pluginId = name.substring(0, pos);
+		version = name.substring(pos + 1);
+		//console.log('version', version, semver.valid(version));
 	}
 	
-	if( !bundleId ) throw new ApplicationError('missing:bundleId:' + name);
+	if( !pluginId ) throw new ApplicationError('missing:pluginId:' + name);
 	if( !version ) throw new ApplicationError('missing:version:' + name);
 
-	Object.defineProperty(this, 'bundleId', {
-		value: bundleId,
+	Object.defineProperty(this, 'pluginId', {
+		value: pluginId,
 		enumerable: false,
 		configurable: false,
 		writable: false
@@ -148,18 +149,18 @@ var BundleIdentity = function BundleIdentity(name) {
 	});
 };
 
-BundleIdentity.prototype = {
+PluginIdentity.prototype = {
 	is: function(match) {
 		return semver.satisfies(this.version, match);
 	},
 	toString: function() {
-		return this.bundleId + '(' + this.version + ')';
+		return this.pluginId + '(' + this.version + ')';
 	}
 };
 
 
-var Bundle = function Bundle(application, dir) {
-	var identity = new BundleIdentity(path.basename(dir));
+var Plugin = function Plugin(application, dir) {
+	var identity = new PluginIdentity(path.basename(dir));
 
 	Object.defineProperty(this, 'application', {
 		value: application,
@@ -175,8 +176,8 @@ var Bundle = function Bundle(application, dir) {
 		writable: false
 	});
 
-	Object.defineProperty(this, 'bundleId', {
-		value: identity.bundleId,
+	Object.defineProperty(this, 'pluginId', {
+		value: identity.pluginId,
 		enumerable: true,
 		configurable: false,
 		writable: false
@@ -200,7 +201,7 @@ var Bundle = function Bundle(application, dir) {
 		enumerable: false,
 		configurable: false,
 		get: function() {
-			return application.getBundleWorkspace(this);
+			return application.workspace(this);
 		}
 	});
 
@@ -213,7 +214,7 @@ var Bundle = function Bundle(application, dir) {
 		}
 	});
 
-	var ctx = new BundleContext(this);
+	var ctx = new PluginContext(this);
 	Object.defineProperty(this, 'ctx', {
 		enumerable: false,
 		configurable: false,
@@ -225,17 +226,17 @@ var Bundle = function Bundle(application, dir) {
 	this.detect();
 };
 
-Bundle.STATUS_DETECTED = 'detected';
-Bundle.STATUS_STARTED = 'started';
-Bundle.STATUS_STARTING = 'starting';
-Bundle.STATUS_STOPPED = 'stopped';
-Bundle.STATUS_STOPPING = 'stopping';
-Bundle.STATUS_ERROR = 'error';
-Bundle.TYPE_SERVICE = 'service';
-Bundle.TYPE_LIBRARY = 'library';
-Bundle.TYPE_INVALID = 'invalid';
+Plugin.STATUS_DETECTED = 'detected';
+Plugin.STATUS_STARTED = 'started';
+Plugin.STATUS_STARTING = 'starting';
+Plugin.STATUS_STOPPED = 'stopped';
+Plugin.STATUS_STOPPING = 'stopping';
+Plugin.STATUS_ERROR = 'error';
+Plugin.TYPE_SERVICE = 'service';
+Plugin.TYPE_LIBRARY = 'library';
+Plugin.TYPE_INVALID = 'invalid';
 
-Bundle.prototype = {
+Plugin.prototype = {
 	path: function(f) {
 		return path.join(this.home, f);
 	},
@@ -245,23 +246,23 @@ Bundle.prototype = {
 		if( fs.existsSync(manifest_file) ) {
 			var manifest = fs.readFileSync(manifest_file, 'utf-8');
 			if( !manifest )
-				throw new ApplicationError('bundle_manifest_error:package_json_not_found:' + this.identity + ':' + manifest_file);
+				throw new ApplicationError('plugin_manifest_error:package_json_not_found:' + this.identity + ':' + manifest_file);
 
 			try {
 				manifest = JSON.parse(manifest);
 			} catch(err) {
-				throw new ApplicationError('bundle_manifest_error:package_json_parse_error:' + this.identity + ':' + manifest_file + ':' + err.message, err);
+				throw new ApplicationError('plugin_manifest_error:package_json_parse_error:' + this.identity + ':' + manifest_file + ':' + err.message, err);
 			}
 
-			if( typeof(manifest.name) !== 'string' ) throw new ApplicationError('bundle_manifest_error:manifest.name(bundleId):' + this.identity.toString(), manifest);
-			if( typeof(manifest.version) !== 'string' ) throw new ApplicationError('bundle_manifest_error:manifest.version:' + this.identity.toString(), manifest);
-			if( typeof(manifest.activator) !== 'string' ) throw new ApplicationError('bundle_manifest_error:manifest.activator:' + this.identity.toString(), manifest);
+			if( typeof(manifest.name) !== 'string' ) throw new ApplicationError('plugin_manifest_error:manifest.name(pluginId):' + this.identity.toString(), manifest);
+			if( typeof(manifest.version) !== 'string' ) throw new ApplicationError('plugin_manifest_error:manifest.version:' + this.identity.toString(), manifest);
+			if( typeof(manifest.activator) !== 'string' ) throw new ApplicationError('plugin_manifest_error:manifest.activator:' + this.identity.toString(), manifest);
 
-			if( manifest.name != this.bundleId ) throw new ApplicationError('bundle_manifest_error:bundleId(name)_does_not_match:' + this.identity.toString(), manifest);
-			if( manifest.version != this.version ) throw new ApplicationError('bundle_manifest_error:version_does_not_match:' + this.identity.toString(), manifest);
+			if( manifest.name != this.pluginId ) throw new ApplicationError('plugin_manifest_error:pluginId(name)_does_not_match:' + this.identity.toString(), manifest);
+			if( manifest.version != this.version ) throw new ApplicationError('plugin_manifest_error:version_does_not_match:' + this.identity.toString(), manifest);
 			
 			var application = this.application;
-			var options = this.application.getBundleOptions(this.bundleId, this.version) || {};	
+			var options = this.application.options(this.pluginId, this.version) || {};	
 			var activator = null;
 			var exports = {};
 			var imports = manifest.imports || {};
@@ -287,7 +288,7 @@ Bundle.prototype = {
 				}
 			}
 			
-			var type = activator ? Bundle.TYPE_SERVICE : Bundle.TYPE_LIBRARY;
+			var type = activator ? Plugin.TYPE_SERVICE : Plugin.TYPE_LIBRARY;
 			
 			Object.defineProperty(this, 'activator', {
 				value: activator,
@@ -317,7 +318,7 @@ Bundle.prototype = {
 					return exports;
 				},
 				set: function(o) {
-					//if( typeof(o) !== 'object' ) throw new ApplicationError('bundle.exports must be an object');
+					//if( typeof(o) !== 'object' ) throw new ApplicationError('plugin.exports must be an object');
 					exports = o;
 				}
 			});
@@ -332,7 +333,7 @@ Bundle.prototype = {
 
 						var v = imports[k];
 						if( typeof(v) === 'string' ) {
-							result[k] = application.bundles.get(k, v);
+							result[k] = application.plugins.get(k, v);
 						}
 					}
 					return result;
@@ -347,20 +348,20 @@ Bundle.prototype = {
 			});
 		} else {
 			Object.defineProperty(this, 'type', {
-				value: Bundle.TYPE_INVALID,
+				value: Plugin.TYPE_INVALID,
 				enumerable: true,
 				configurable: true,
 				writable: false
 			});
 			
-			this.status = Bundle.STATUS_ERROR;
+			this.status = Plugin.STATUS_ERROR;
 			return;
 		}
 		
-		this.status = Bundle.STATUS_DETECTED;
+		this.status = Plugin.STATUS_DETECTED;
 	},
 	start: function start() {
-		if( this.status === Bundle.STATUS_STARTED ) {
+		if( this.status === Plugin.STATUS_STARTED ) {
 			console.warn('cannot_start:already_started:' + this.identity + ':' + this.version);
 			return;
 		}
@@ -369,9 +370,9 @@ Bundle.prototype = {
 		
 		var ctx = this.ctx;
 		var imports = this.imports;
-		for(var bundleId in imports) {
-			if( bundleId === this.bundleId ) continue;
-			ctx.require(bundleId);
+		for(var pluginId in imports) {
+			if( pluginId === this.pluginId ) continue;
+			ctx.require(pluginId);
 		}
 		
 		var activator = this.activator;
@@ -380,23 +381,23 @@ Bundle.prototype = {
 			result = activator.start.apply(this, [this.ctx]);
 
 			if( typeof(result) === 'function' ) {
-				this.status = Bundle.STATUS_STARTING;
+				this.status = Plugin.STATUS_STARTING;
 				var self = this;
 				result(function(err) {
 					if( err ) {
-						self.status = Bundle.STATUS_ERROR;
+						self.status = Plugin.STATUS_ERROR;
 						self.error = err;
-						console.error('bundle_start_error:' + this.identity + ':' + err.message, err);
+						console.error('plugin_start_error:' + this.identity + ':' + err.message, err);
 						return;
 					}
 
-					self.status = Bundle.STATUS_STARTED;
+					self.status = Plugin.STATUS_STARTED;
 				});
 			} else {
-				this.status = Bundle.STATUS_STARTED;
+				this.status = Plugin.STATUS_STARTED;
 			}
 		} else {
-			this.status = Bundle.STATUS_STARTED;
+			this.status = Plugin.STATUS_STARTED;
 		}
 		
 		console.log('* started ' + this.identity);
@@ -404,7 +405,7 @@ Bundle.prototype = {
 		return result;
 	},
 	stop: function stop() {
-		if( this.status !== Bundle.STATUS_STARTED ) {
+		if( this.status !== Plugin.STATUS_STARTED ) {
 			console.warn('cannot_stop:not_started_yet:' + this.identity + ':' + this.status);
 			return;
 		}
@@ -418,19 +419,19 @@ Bundle.prototype = {
 				var self = this;
 				result(function(err) {
 					if( err ) {
-						self.status = Bundle.STATUS_ERROR;
+						self.status = Plugin.STATUS_ERROR;
 						self.error = err;
-						console.error('bundle_stop_error:' + this.identity + ':' + err.message, err);
+						console.error('plugin_stop_error:' + this.identity + ':' + err.message, err);
 						return;
 					}
 
-					self.status = Bundle.STATUS_STOPPED;
+					self.status = Plugin.STATUS_STOPPED;
 				});
 			} else {
-				this.status = Bundle.STATUS_STOPPED;
+				this.status = Plugin.STATUS_STOPPED;
 			}
 		} else {
-			this.status = Bundle.STATUS_STOPPED;
+			this.status = Plugin.STATUS_STOPPED;
 		}
 
 		return result;
@@ -438,4 +439,4 @@ Bundle.prototype = {
 };
 
 
-module.exports = Bundle;
+module.exports = Plugin;
