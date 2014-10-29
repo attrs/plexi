@@ -1,6 +1,6 @@
 {
   "name": "plexi",
-  "version": "0.0.1a",
+  "version": "0.0.2",
   "description": "OSGi style plugin module system",
   "author": {
     "name": "joje",
