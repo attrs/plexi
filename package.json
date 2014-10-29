@@ -1,48 +1,50 @@
 {
-	"name": "attrs.plugins",
-	"version": "0.0.1a",
-	"description": "OSGi style plugin module system",
-	"author": {
-		"name": "joje",
-		"email": "joje.attrs@gmail.com",
-		"url": "https://github.com/joje6"
-	},
-	"homepage": "https://github.com/attrs/attrs.plugins",
-	"repository": {
-		"type": "git",
-		"url": "git://github.com/attrs/attrs.plugins.git"
-	},
-	"bugs": {
-		"url": "https://github.com/joje6/bundle.system/issues"
-	},
-	"licenses": [
-		{
-		  "type": "MIT",
-		  "url": "http://www.opensource.org/licenses/MIT"
-		}
-	],
-	"main": "main.js",
-	"bin": {
-		"bundle": "bin/bs"
-	},
-	"engines": {
-		"node": ">= 0.8.0"
-	},
-	"dependencies": {
-		"semver": "*",
-		"cli-table": "*"
-	},
-	"contributors": [
-		{
-		    "name": "joje",
-		    "email": "joje.attrs@gmail.com",
-		    "url": "https://github.com/joje6"
-		}
-	],
-	"keywords": [
-		"osgi",
-		"bundle",
-		"bundles",
-		"plugin"
-	]
+  "name": "plexi",
+  "version": "0.0.1a",
+  "description": "OSGi style plugin module system",
+  "author": {
+    "name": "joje",
+    "email": "joje.attrs@gmail.com",
+    "url": "https://github.com/joje6"
+  },
+  "homepage": "https://github.com/attrs/plexi",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/attrs/plexi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/attrs/plexi/issues"
+  },
+  "licenses": [
+    {
+      "type": "MIT",
+      "url": "http://www.opensource.org/licenses/MIT"
+    }
+  ],
+  "main": "main.js",
+  "bin": {
+    "bundle": "bin/bs"
+  },
+  "engines": {
+    "node": ">= 0.8.0"
+  },
+  "dependencies": {
+    "cli-table": "*",
+    "npm": "^2.1.5",
+    "semver": "*"
+  },
+  "contributors": [
+    {
+      "name": "joje",
+      "email": "joje.attrs@gmail.com",
+      "url": "https://github.com/joje6"
+    }
+  ],
+  "keywords": [
+    "osgi",
+    "module",
+    "bundle",
+    "plexi",
+    "plugin"
+  ]
 }

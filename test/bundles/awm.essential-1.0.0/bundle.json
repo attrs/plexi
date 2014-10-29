@@ -1,9 +1,0 @@
-{
-	"bundleId": "awm.essential",
-	"version": "1.0.0",
-	"description": "attributes platform essential rest api",		
-	"activator": "activator.js",
-	"imports": {
-		"http": "*"
-	}
-}

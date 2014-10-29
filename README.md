@@ -6,6 +6,6 @@
 	npm install attrs.plugins
 
 ### Usage
-	var bs = require('attrs.plugins');
+	var plexi = require('plexi');
 	
 	... usage & examples will be updated soon ...

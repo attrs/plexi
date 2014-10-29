@@ -1,7 +1,7 @@
 var path = require('path');
-var bs = require('../');
+var plexi = require('../');
 
-bs.cli.start();
-var app = bs.startup(__dirname);
+plexi.cli.start();
+var app = plexi.startup(__dirname);
 
-console.log('[' + app.applicationId + '] ' + app.name + ' started!');
+console.log('plexi started!');

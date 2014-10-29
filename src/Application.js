@@ -28,7 +28,7 @@ if( !String.prototype.trim ) {
 
 var Application = function Application(home_dir, bundle_dir, workspace_dir, log_dir) {
 	this.HOME = home_dir;
-	this.PREFERENCE_FILE = path.join(this.HOME, 'application.json');	
+	this.PREFERENCE_FILE = path.join(this.HOME, 'plexi.json');	
 	this.BUNDLE_HOME = bundle_dir || path.join(this.HOME, 'plugins');
 	this.WORKSPACE_HOME = workspace_dir || path.join(this.HOME, 'workspace');
 	this.LOG_DIR = log_dir || path.join(this.HOME, 'logs');

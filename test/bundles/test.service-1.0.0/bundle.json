@@ -1,9 +1,0 @@
-{
-	"bundleId": "test.service",
-	"version": "1.0.0",
-	"activator": "activator.js",
-	"imports": {
-		"http": "*",
-		"test.module": "*"
-	}
-}
