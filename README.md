@@ -1,4 +1,4 @@
-## attrs.plugins
+## plexi
 	plugin module system for nodejs
 
 ### Installation
