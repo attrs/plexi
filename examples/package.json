@@ -1,0 +1,10 @@
+{
+	"name": "printingengine",
+	"description": "Pringting Engine Home",
+	"version": "0.0.1",
+	"private": true,
+	"main": "startup.js",
+	"dependencies": {
+		"plexi": "*"
+	}
+}

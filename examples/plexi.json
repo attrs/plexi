@@ -1,0 +1,10 @@
+{
+	"env": {},
+	"properties": {},
+	"plugins": {
+		"plexi.workbench": {
+		},
+		"plexi.printingengine": {
+		}
+	}
+}
