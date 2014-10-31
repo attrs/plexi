@@ -1,6 +1,6 @@
 {
   "name": "plexi",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "description": "OSGi style plugin module system",
   "author": {
     "name": "joje",
@@ -23,8 +23,9 @@
   ],
   "main": "main.js",
   "bin": {
-    "bundle": "bin/bs"
+    "plexi": "bin/plexi"
   },
+  "preferGlobal": true,
   "engines": {
     "node": ">= 0.8.0"
   },

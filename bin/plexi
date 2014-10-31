@@ -1,0 +1,245 @@
+#!/usr/bin/env node
+
+'use strict';
+
+process.title = 'plexi updater';
+
+console.log('plexi updater processing...');
+console.log('basedir', process.cwd());
+
+var path = require('path');
+var fs = require('fs');
+var npm = require('npm');
+var semver = require('semver');
+
+
+if( !String.prototype.startsWith ) {
+	String.prototype.startsWith = function(s) {
+		if( !s ) return false;
+		return (this.indexOf(s)==0);
+	};
+}
+
+if( !String.prototype.endsWith ) {
+	String.prototype.endsWith = function(s) {
+		if( !s ) return false;
+
+		return this.indexOf(s, this.length - s.length) !== -1;
+	};
+}
+
+if( !String.prototype.trim ) {
+	String.prototype.trim = function() {
+		return this.replace(/(^ *)|( *$)/g, "");
+	};
+}
+
+var rmdirRecursive = function(path) {
+    var files = [];
+    if( fs.existsSync(path) ) {
+        files = fs.readdirSync(path);
+        files.forEach(function(file,index){
+            var curPath = path + "/" + file;
+            if(fs.lstatSync(curPath).isDirectory()) { // recurse
+                rmdirRecursive(curPath);
+            } else { // delete file
+                fs.unlinkSync(curPath);
+            }
+        });
+        fs.rmdirSync(path);
+    }
+};
+
+// class Updater
+var Updater = function Updater(homedir, properties) {
+	if( !homedir ) throw new Error('missing home directory', homedir);
+	
+	if( !properties || typeof(properties) !== 'object' ) properties = {};
+	
+	this.properties = properties;
+	this.load(homedir);
+	this.detect();
+};
+
+Updater.prototype = {
+	load: function(homedir) {
+		this.HOME = homedir;
+		this.PREFERENCE_FILE = pref_file;
+		
+		var pref_file = path.join(homedir, 'plexi.json');
+		if( !fs.existsSync(pref_file) || !fs.statSync(pref_file).isFile() ) {
+			throw new Error('Error:Not found plexi.json file:' + pref_file);
+		}
+		
+		var preference = fs.readFileSync(pref_file, 'utf-8');
+		var env = preference.env || {};
+		
+		this.PLUGINS_DIR = path.join(this.HOME, env.plugins || 'plugins');
+		this.WORKSPACE_DIR = path.join(this.HOME, env.workspace || 'workspace');
+		this.LOG_DIR = path.join(this.HOME, env.logs || 'logs');
+		
+		if( !fs.existsSync(this.PLUGINS_DIR) ) fs.mkdirSync(this.PLUGINS_DIR);
+		if( !fs.existsSync(this.WORKSPACE_DIR) ) fs.mkdirSync(this.WORKSPACE_DIR);
+		if( !fs.existsSync(this.LOG_DIR) ) fs.mkdirSync(this.LOG_DIR);
+
+		try {				
+			var props = this.properties;				
+			props['home'] = this.HOME;
+			props['preference.file'] = this.PREFERENCE_FILE;
+			props['plugins.dir'] = this.PLUGINS_DIR;
+
+			for(var k in props) {
+				var value = props[k] || '';
+				preference = preference.split('{' + k + '}').join(value);
+			}
+			
+			preference = preference.split('\\').join('/');
+			preference = JSON.parse(preference);
+		} catch(err) {
+			throw new ApplicationError('application_load_error:config_file_parse:' + pref_file + ':' + err.message, err);
+		}
+	
+		// setup instance attributes
+		this.preference = preference;
+	},
+	detect: function() {
+		var files = fs.readdirSync(this.PLUGINS_DIR);
+		
+		for(var i=0; i < files.length; i++) {
+			var dirname = files[i];			
+			if( dirname.startsWith('-') || !~dirname.indexOf('@') ) continue;
+		
+			var dir = path.join(this.PLUGINS_DIR, dirname);
+
+			var stat = fs.statSync(dir);
+			if( stat.isDirectory() ) {
+				//TODO: ...
+			}
+		}
+	},
+	install: function install(fn) {
+		var errorResult = [];
+		var result = [];
+		var self = this;
+
+		var tempdir = path.join(this.PLUGINS_DIR, 'temp');
+		var pluginsdir = this.PLUGINS_DIR;
+		var downloaddir = path.join(tempdir, 'node_modules');
+
+		var queue = [];
+		var complete = 0;
+		
+		// delete plugins dir
+		rmdirRecursive(pluginsdir);
+		
+		var proper = this.preference.plugins;
+		var plugins = [];
+		for(var k in proper) {
+			plugins.push(k);
+		}
+		console.log('package for install:', plugins);
+		
+		var notify = function(err, item) {
+			complete = complete + 1;
+			console.log('progressing ' + complete + ' of ' + queue.length);
+			if( err ) return errorResult.push(err);
+
+			console.log('complete', item);
+			result[item.pluginId] = item.version;
+
+			if( queue.length <= complete ) {
+				rmdirRecursive(tempdir);
+				
+				if( errorResult.length ) fn(errorResult, result);
+				else fn(null, result);
+			}
+		};
+
+		var install = function(packagename) {
+			npm.load(function(err) {
+				if(err) return notify('[' + packagename + '] npm load error:' + err);
+
+				npm.commands.view([packagename, 'name', 'version', 'activator', 'imports'], function(err, data) {
+					if( err ) return notify('[' + packagename + '] npm view error:' + err);
+					if( !data ) return notify('[' + packagename + '] npm view error(data was null)');
+
+					var npmname, npmversion, activator, imports;
+					for(var k in data) {
+						if( !data[k] ) break;
+						npmname = data[k].name;
+						npmversion = data[k].version || k;
+						activator = data[k].activator;
+						imports = data[k].imports;
+						break;
+					}
+
+					console.log('[' + packagename + '] prepare');
+					console.log('* name', npmname);
+					console.log('* version', npmversion);
+					console.log('* activator', activator);
+					console.log('* imports', imports);
+	
+					if( imports ) {
+						for(var name in imports) {
+							var v = imports[name];
+			
+							var item = {pluginId:name, version:v};
+							queue.push(item);
+							install(( v && v !== '*' ) ? (name + '@\'' + v + '\'') : name);
+						}
+					}
+	
+					npm.commands.install(tempdir, [npmname + '@' + npmversion + ''], function (err, data) {
+						if(err) return notify('[' + npmname + '@' + npmversion + '] npm install error:' + err);
+	
+						var packagedir = path.join(downloaddir, npmname);
+						console.log('[' + npmname + '@' + npmversion + '] downloaded "' + packagedir + '"');
+	
+						var targetdir = path.join(pluginsdir, (npmname + '@' + npmversion));
+						//rmdirRecursive(targetdir);
+						if( fs.existsSync(packagedir) && !fs.existsSync(targetdir) ) fs.renameSync(packagedir, targetdir);
+		
+						notify(null, {pluginId:npmname, version:npmversion});
+					});
+				});
+			});
+		};
+		
+		for(var x=0; x < plugins.length; x++) {
+			var pkg = plugins[x];
+	
+			/*console.log('[' + pluginId + '@' + version + '] checking...');				
+			var already = this.get(pluginId, version);
+			if( already ) {
+				console.log('[' + pluginId + '@' + version + '] is already intalled', already.pluginId + '@' + already.version);
+				result.push(already.pluginId + '@' + already.version);
+		
+				var imports = already.manifest.imports;
+				console.log('[' + pluginId + '@' + version + '] check imports:', imports);
+				if( imports ) {
+					for(var name in imports) {
+						var v = imports[name];
+				
+						if( !this.get(name, v) ) {						
+							var item = {pluginId:name, version:v};
+							queue.push(item);
+							install(( v && v !== '*' ) ? (name + '@\'' + v + '\'') : name);
+						}
+					}
+				}
+				continue;
+			}*/
+	
+			console.log('[' + pkg + '] installing...');
+			queue.push(pkg);
+			install(pkg);
+		}
+	}
+};
+
+var updater = new Updater(process.cwd());
+updater.install(function(err, result) {
+	if( err ) console.error('plugin install error', err);
+	
+	console.log('plugin installed successfully', result);
+});

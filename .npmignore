@@ -4,7 +4,10 @@
 .project
 Makefile
 docs/
-examples/
+examples/plugins/
+examples/node_modules/
+examples/logs/
+examples/workspace/
 inbrowser/
 support/
 test/

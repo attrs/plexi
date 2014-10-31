@@ -15,6 +15,14 @@ var PluginContext = function PluginContext(plugin) {
 		writable: false
 	});
 	
+	Object.defineProperty(this, 'application', {
+		enumerable: true,
+		configurable: false,
+		get: function() {
+			return plugin.application;
+		}
+	});
+	
 	Object.defineProperty(this, 'identity', {
 		enumerable: true,
 		configurable: false,
@@ -110,7 +118,7 @@ PluginContext.prototype = {
 				return plugin.exports;
 			}
 		} else {
-			throw new ApplicationError('import plugin [' + pluginId + '] is not defined in plugin [' + caller.pluginId + '-' + caller.version + '] manifest file');
+			throw new ApplicationError('[' + caller.pluginId + '-' + caller.version + ']: imported plugin [' + pluginId + '] is found');
 		}
 
 		return null;
@@ -333,7 +341,7 @@ Plugin.prototype = {
 
 						var v = imports[k];
 						if( typeof(v) === 'string' ) {
-							result[k] = application.plugins.get(k, v);
+							result[k] = application.get(k, v);
 						}
 					}
 					return result;

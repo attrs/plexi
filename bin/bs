@@ -1,9 +1,0 @@
-#!/usr/bin/env node
-
-"use strict";
-
-process.title = 'bundle.system';
-
-console.log('bs...');
-
-require('./updater.js').update(process.cwd());

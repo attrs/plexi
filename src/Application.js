@@ -1,8 +1,14 @@
 var path = require('path');
 var fs = require('fs');
-var semver = require('semver');
+var npm = require("npm");
+
+npm.on('log', function(message) {
+	console.log('log:' + message);
+});
 
 var Plugin = require('./Plugin.js');
+var PluginGroup = require('./PluginGroup.js');
+var Workspace = require('./Workspace.js');
 var ApplicationError = require('./ApplicationError.js');
 
 if( !String.prototype.startsWith ) {
@@ -26,18 +32,36 @@ if( !String.prototype.trim ) {
 	};
 }
 
+var rmdirRecursive = function(path) {
+    var files = [];
+    if( fs.existsSync(path) ) {
+        files = fs.readdirSync(path);
+        files.forEach(function(file,index){
+            var curPath = path + "/" + file;
+            if(fs.lstatSync(curPath).isDirectory()) { // recurse
+                rmdirRecursive(curPath);
+            } else { // delete file
+                fs.unlinkSync(curPath);
+            }
+        });
+        fs.rmdirSync(path);
+    }
+};
+
 var Application = function Application(homedir, properties) {
 	if( !homedir ) throw new Error('missing home directory', homedir);
 	
 	if( typeof(properties) !== 'object' ) properties = {};
 	this.properties = properties || {};
 	this.load(homedir);
+	
+	var self = this;
 	this.detect();
 	this.start();
 };
 
 Application.prototype = {
-	load: function load(homedir) {		
+	load: function load(homedir) {
 		var pref_file = path.join(homedir, 'plexi.json');
 		
 		this.HOME = homedir;
@@ -77,68 +101,86 @@ Application.prototype = {
 			// setup instance attributes
 			this.preference = preference;
 		} else {
-			this.preference = {};
+			this.preference = {env:{},plugins:{}};
 		}
 		
-		this.plugins = new PluginGroups();
+		this.plugins = {};
 		this.workspaces = {};
 	},
-	detect: function detect() {
+	detect: function detect(fn) {
 		var files = fs.readdirSync(this.PLUGINS_DIR);
-
+		
 		for(var i=0; i < files.length; i++) {
 			var dirname = files[i];			
 			if( dirname.startsWith('-') || !~dirname.indexOf('@') ) continue;
-			
+		
 			var dir = path.join(this.PLUGINS_DIR, dirname);
 
 			var stat = fs.statSync(dir);
 			if( stat.isDirectory() ) {
 				var plugin = new Plugin(this, dir);
-				this.plugins.add(plugin);				
-				console.log('* detected', plugin.pluginId, plugin.version);
-				this.fire('detected', {plugin:plugin});
+			
+				if( plugin instanceof Plugin ) {
+					var id = plugin.pluginId;
+					var plugingroup = this.plugins[id];
+					if( !plugingroup ) {
+						plugingroup = new PluginGroup(id);
+						this.plugins[id] = plugingroup;
+					}
+		
+					plugingroup.add(plugin);
+			
+					console.log('* detected', plugin.pluginId, plugin.version);
+					this.fire('detected', {plugin:plugin});
+				} else {
+					throw new ApplicationError('invalid_plugin:' + dir);
+				}
 			}
 		}
 	},
-	install: function install(pluginId, version, fn) {
-		console.log('* plugin install', pluginId, version);
-	},
-	uninstall: function uninstall(pluginId, version, fn) {
-		console.log('* plugin install', pluginId, version);
+	start: function start() {		
+		for(var id in this.plugins) {
+			var plugin = this.get(id);
+			if( plugin.status === Plugin.STATUS_DETECTED ) plugin.start();
+		}
 	},
 	exists: function exists(pluginId, version) {
 		return (this.plugins.get(pluginId, version) ) ? true : false;
 	},
-	start: function start() {
-		var preference = this.preference;
-		var plugins = this.plugins;
-		
-		// install & update
-		for(var name in preference) {
-			if( !preference.hasOwnProperty(name) ) continue;
-			
-			var pos = name.lastIndexOf('@');
-			var pluginId = name;
-			var version;
-
-			if( pos > 0 ) {
-				pluginId = name.substring(0, pos);
-				version = name.substring(pos + 1);
-			}
-			
-			var plugin = plugins.get(pluginId, version);
-			if( !plugin ) {
-				this.install(pluginId, version, function(err, result) {
+	all: function() {
+		var result = [];
+		for(var k in this.plugins) {
+			var plugingroup = this.plugins[k];
+			if( plugingroup instanceof PluginGroup ) {
+				var plugins = plugingroup.all();
 				
-				});
+				for(var j=0; j < plugins.length; j++) {
+					var plugin = plugins[j];
+					result.push(plugin);
+				}				
 			}
 		}
-		
-		for(var id in plugins.groups) {
-			var plugin = plugins.get(id);
-			if( plugin.status === Plugin.STATUS_DETECTED ) plugin.start();
+		return result;
+	},
+	group: function(pluginId) {
+		return this.plugins[pluginId];
+	},
+	groups: function(pluginId) {
+		var result = [];
+		for(var k in this.plugins) {
+			var plugingroup = this.plugins[k];
+			if( plugingroup instanceof PluginGroup ) {
+				result.push(plugingroup);
+			}
 		}
+		return result;	
+	},
+	get: function(pluginId, version) {
+		var plugingroup = this.plugins[pluginId];
+		if( plugingroup ) {
+			return plugingroup.get(version);
+		}
+		return null;
 	},
 	workspace: function(pluginId) {
 		if( !pluginId ) throw new ApplicationError('missing:pluginId');
@@ -158,15 +200,16 @@ Application.prototype = {
 		return ws;
 	},
 	options: function(pluginId, version) {
-		if( this.preference ) {			
-			var plugin_pref = this.preference[pluginId];
+		var pref = this.preference.plugins;
+		if( pref ) {			
+			var options = pref[pluginId];
 			
 			if( version ) {
-				plugin_pref = this.preference[pluginId + '@' + version] || plugin_pref;
+				options = pref[pluginId + '@' + version] || options;
 			}
 			
-			if( plugin_pref ) {
-				return JSON.parse(JSON.stringify(plugin_pref));
+			if( options ) {
+				return JSON.parse(JSON.stringify(options));
 			}
 		}
 
@@ -177,141 +220,6 @@ Application.prototype = {
 	un: function(type, fn) {
 	},
 	fire: function(type, values) {		
-	}
-};
-
-
-
-// Plugin Workspace
-var Workspace = function Workspace(dir) {
-	this.dir = dir;
-};
-
-Workspace.prototype = {
-	path: function(subpath) {
-		if( !fs.existsSync(this.dir) ) {
-			fs.mkdirSync(this.dir);
-		}
-
-		var file = path.join(this.dir, subpath)
-
-		return file;
-	},
-	save: function(name, data, charset, options) {
-		return {
-			done: function(fn) {
-			}
-		};
-	},
-	load: function(name, charset, options) {
-		return {
-			done: function(fn) {
-			}
-		};
-	}
-};
-
-
-
-// Plugin Groups
-var PluginGroups = function PluginGroups() {
-	this.groups = {};
-};
-
-PluginGroups.prototype = {
-	add: function(plugin) {
-		if( plugin instanceof Plugin ) {
-			var id = plugin.pluginId;
-			var group = this.groups[id];
-			if( !group ) {
-				group = new PluginGroup(id);
-				this.groups[id] = group;
-			}
-			
-			group.add(plugin);
-		} else {
-			throw new ApplicationError('invalid_plugin', plugin);
-		}
-	},
-	all: function(pluginId) {
-		var arg = [];
-		
-		if( arguments.length <= 0 ) {
-			for(var pluginId in this.groups) {
-				var group = this.groups[pluginId];
-				if( group ) {
-					var plugins = group.all();
-					if( plugins && plugins.length > 0 ) arg = arg.concat(plugins);
-				}
-			}
-		} else {
-			var group = this.groups[pluginId];
-			if( group ) {
-				var plugins = group.all();
-				if( plugins && plugins.length > 0 ) arg = arg.concat(plugins);
-			}
-		}
-
-		return arg;
-	},
-	get: function(pluginId, version) {
-		var group = this.groups[pluginId];
-		if( group ) {
-			return group.get(version);
-		}
-
-		return null;
-	}
-};
-
-var PluginGroup = function PluginGroup(pluginId) {
-	this.pluginId = pluginId;
-	this.plugins = [];
-};
-
-PluginGroup.prototype = {
-	/*
-	*
-	>1.0
-	<1.0
-	1.0.0
-	1.0
-	1.0.*
-	1.*
-	*/
-	get: function(match) {
-		if( !match || match === '*' ) return this.plugins[0];
-
-		for(var i=0; i < this.plugins.length; i++) {
-			var plugin = this.plugins[i];
-			var version = plugin.version;
-
-			if( semver.satisfies(version, match) ) {
-				return plugin;
-			}
-		}
-
-		return null;
-	},
-	master: function() {
-		return this.plugins[0];
-	},
-	all: function() {
-		return this.plugins;
-	},
-	add: function(plugin) {
-		if( (plugin instanceof Plugin) && plugin.pluginId === this.pluginId ) {
-			this.plugins.push(plugin);
-
-			this.plugins.sort(function compare(a, b) {
-				return semver.compare(b.version, a.version);
-			});
-		} else {
-			throw new ApplicationError('incompatible_plugin:' + plugin.pluginId, plugin);
-		}
-	},
-	toString: function() {
-		return '[group:' + this.pluginId + ':' + this.plugins.length + ']';
 	}
 };
 

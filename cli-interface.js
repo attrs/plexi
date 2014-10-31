@@ -54,25 +54,25 @@ CLInterface.prototype = {
 					 style: { compact : true, 'padding-left' : 1 }
 				});
 
-				var plugins = app.plugins.all();
+				var plugins = app.all();
 				if( plugins && plugins.length > 0 ) {
 					for(var i=0; i < plugins.length; i++) {
 						var plugin = plugins[i];
+						
 						table.push([i + '  ', '' + plugin.status + '  ', plugin.pluginId + '  ', plugin.version, plugin.type + ' ']);
 					}
+					console.log(table.toString());
 				} else {
-					console.log('nothing');
+					console.log('empty!');
 				}
-
-				console.log(table.toString());
 			} else if( text === 'start' ) {
-				console.error('USAGE: "' + text + ' (index)"');
+				console.error('USAGE: "' + text + ' (pluginId) [@(version)]"');
 			} else if( text === 'stop' ) {
-				console.error('USAGE: "' + text + ' (index)"');
+				console.error('USAGE: "' + text + ' (pluginId) [@(version)]"');
 			} else if( text === 'install' ) {
-				console.error('USAGE: "' + text + ' (pluginId) [(version)]"');
+				console.error('USAGE: "' + text + ' (pluginId) [@(version)]"');
 			} else if( text === 'uninstall' ) {
-				console.error('USAGE: "' + text + ' (pluginId) [(version)]"');
+				console.error('USAGE: "' + text + ' (pluginId) [@(version)]"');
 			} else if( text.startsWith('start ') ) {
 				if( !app ) return console.log('application not selected');
 
