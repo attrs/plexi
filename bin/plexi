@@ -11,7 +11,7 @@ var path = require('path');
 var fs = require('fs');
 var npm = require('npm');
 var semver = require('semver');
-
+var argv = require('attrs.argv');
 
 if( !String.prototype.startsWith ) {
 	String.prototype.startsWith = function(s) {
@@ -237,9 +237,28 @@ Updater.prototype = {
 	}
 };
 
-var updater = new Updater(process.cwd());
-updater.install(function(err, result) {
-	if( err ) console.error('plugin install error', err);
+if( argv.install ) {
+	var updater = new Updater(process.cwd());
+	updater.install(function(err, result) {
+		if( err ) console.error('plugin install error', err);
 	
-	console.log('plugin installed successfully', result);
-});
+		console.log('plugin installed successfully', result);
+	});
+} else if( argv.update ) {
+	var updater = new Updater(process.cwd());
+	updater.update(function(err, result) {
+		if( err ) console.error('plugin update error', err);
+	
+		console.log('plugin updated successfully', result);
+	});
+} else if( argv.start ) {
+	var path = require('path');
+	var plexi = require('../');
+	
+	console.log('plexi start', process.cwd());
+
+	plexi.cli.start();
+	var app = plexi.startup(process.cwd());
+} else {
+	console.log('input command:install,update,start');
+}

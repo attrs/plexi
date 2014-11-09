@@ -3,6 +3,10 @@
 	"description": "Pringting Engine Home",
 	"version": "0.0.1",
 	"private": true,
+	"scripts": {
+		"install": "./node_modules/plexi/bin/plexi install",
+		"start": "./node_modules/plexi/bin/plexi start"	
+	},
 	"main": "startup.js",
 	"dependencies": {
 		"plexi": "*"
