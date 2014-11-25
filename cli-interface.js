@@ -16,16 +16,67 @@ CLInterface.prototype = {
 
 		process.stdin.resume();
 		process.stdin.setEncoding('utf-8');
+		process.stdout.write('\n$ ');
 
 		process.stdin.on('data', function (text) {
 			if( self.stopped ) return;
 			if( !text ) text = '';
 
-			text = text.replace(/[\n\r]/g, '').trim();
+			text = text.replace(/[\n\r]/g, ' ').trim();
+			var cmd = text.split(' ')[0];
+			var arg = text.split(' ').splice(1);
 			
 			var app = self.application;
 			
-			if( text === 'profile' || text === 'p' ) {
+			if( cmd === 'profile' || cmd === 'p' ) {
+				if( !app ) return console.log('application not selected');
+				
+				if( !arg.length ) {
+					var table = new Table({
+						chars: { 'top': '' , 'top-mid': '' , 'top-left': '' , 'top-right': ''
+							, 'bottom': '' , 'bottom-mid': '' , 'bottom-left': '' , 'bottom-right': ''
+							, 'left': '' , 'left-mid': '' , 'mid': '' , 'mid-mid': ''
+							, 'right': '' , 'right-mid': '' , 'middle': ' ' },
+						 style: { compact : true, 'padding-left' : 1 }
+					});
+					
+					var host = app.plugins.host();
+
+					table.push(['home  ', app.HOME]);
+					table.push(['preferences.file  ', app.PREFERENCES_FILE]);
+					table.push(['plugins.dir  ', app.PLUGINS_DIR]);
+					table.push(['workspace.dir  ', app.WORKSPACE_DIR]);
+					table.push(['host  ', host && (host.identity.toString() + ' [' + host.home + ']')]);
+
+					console.log(table.toString());
+				} else {
+					var plugins = app.plugins.all();
+					var plugin = plugins[parseInt(arg[0])];
+					if( plugin ) {
+						var table = new Table({
+							chars: { 'top': '' , 'top-mid': '' , 'top-left': '' , 'top-right': ''
+								, 'bottom': '' , 'bottom-mid': '' , 'bottom-left': '' , 'bottom-right': ''
+								, 'left': '' , 'left-mid': '' , 'mid': '' , 'mid-mid': ''
+								, 'right': '' , 'right-mid': '' , 'middle': ' ' },
+							 style: { compact : true, 'padding-left' : 1 }
+						});
+						
+						table.push(['identity  ', (plugin.identity && plugin.identity.toString()) || '(null)']);
+						table.push(['home  ', plugin.home || '(null)']);
+						table.push(['pluginId  ', plugin.pluginId || '(null)']);
+						table.push(['version  ', plugin.version || '(null)']);
+						table.push(['activator  ', (plugin.activator ? true : false)]);
+						table.push(['status  ', plugin.status || '(null)']);
+						table.push(['workspace  ', (plugin.workspace && plugin.workspace.dir) || '(null)']);
+						table.push(['dependencies  ', JSON.stringify(plugin.dependencies, '', '\t')]);
+						table.push(['preference  ', JSON.stringify(plugin.preference, '', '\t')]);
+
+						console.log(table.toString());
+					} else {
+						console.log('input plugin index (Please check with "status" command) [0-' + (plugins.length - 1) + ']');
+					}
+				}
+			} else if( cmd === 'ss' || cmd === 'status' || cmd === 'list' || cmd === 'ls' ) {
 				if( !app ) return console.log('application not selected');
 
 				var table = new Table({
@@ -36,60 +87,46 @@ CLInterface.prototype = {
 					 style: { compact : true, 'padding-left' : 1 }
 				});
 
-				table.push(['home  ', app.HOME]);
-				table.push(['preference.file  ', app.PREFERENCE_FILE]);
-				table.push(['plugins.dir  ', app.PLUGINS_DIR]);
-				table.push(['workspace.dir  ', app.WORKSPACE_DIR]);
-				table.push(['log.dir  ', app.LOG_DIR]);
-
-				console.log(table.toString());
-			} else if( text === 'ss' || text === 'status' || text === 'list' || text === 'ls' ) {
-				if( !app ) return console.log('application not selected');
-
-				var table = new Table({
-					chars: { 'top': '' , 'top-mid': '' , 'top-left': '' , 'top-right': ''
-						, 'bottom': '' , 'bottom-mid': '' , 'bottom-left': '' , 'bottom-right': ''
-						, 'left': '' , 'left-mid': '' , 'mid': '' , 'mid-mid': ''
-						, 'right': '' , 'right-mid': '' , 'middle': ' ' },
-					 style: { compact : true, 'padding-left' : 1 }
-				});
-
-				var plugins = app.all();
+				var plugins = app.plugins.all();
 				if( plugins && plugins.length > 0 ) {
 					for(var i=0; i < plugins.length; i++) {
 						var plugin = plugins[i];
 						
-						table.push([i + '  ', '' + plugin.status + '  ', plugin.pluginId + '  ', plugin.version, plugin.type + ' ']);
+						table.push([i + '  ', '' + plugin.status + '  ', plugin.pluginId + '  ', plugin.version]);
 					}
 					console.log(table.toString());
 				} else {
 					console.log('empty!');
 				}
-			} else if( text === 'start' ) {
-				console.error('USAGE: "' + text + ' (pluginId) [@(version)]"');
-			} else if( text === 'stop' ) {
-				console.error('USAGE: "' + text + ' (pluginId) [@(version)]"');
-			} else if( text === 'install' ) {
-				console.error('USAGE: "' + text + ' (pluginId) [@(version)]"');
-			} else if( text === 'uninstall' ) {
-				console.error('USAGE: "' + text + ' (pluginId) [@(version)]"');
-			} else if( text.startsWith('start ') ) {
-				if( !app ) return console.log('application not selected');
-
-				console.log('start plugin');
-			} else if( text.startsWith('stop ') ) {
-				if( !app ) return console.log('application not selected');
-
-				console.log('stop plugin');
-			} else if( text.startsWith('install ') ) {
-				if( !app ) return console.log('application not selected');
-
-				console.log('install plugin');
-			} else if( text.startsWith('uninstall ') ) {
-				if( !app ) return console.log('application not selected');
-
-				console.log('uninstall plugin');
-			} else if( text === 'help' || text === 'h' || text === '?' ) {
+			} else if( cmd === 'start' ) {
+				if( !arg.length ) {
+					console.error('USAGE: "' + cmd + ' (index)"');
+				} else {
+					var plugins = app.plugins.all();
+					var plugin = plugins[parseInt(arg[0])];
+					if( !plugin ) {
+						console.log('input plugin index (Please check with "status" command) [0-' + (plugins.length - 1) + ']');
+					} else {
+						plugin.start();
+					}
+				}
+			} else if( cmd === 'stop' ) {
+				if( !arg.length ) {
+					console.error('USAGE: "' + cmd + ' (index)"');
+				} else {
+					var plugins = app.plugins.all();
+					var plugin = plugins[parseInt(arg[0])];
+					if( !plugin ) {
+						console.log('input plugin index (Please check with "status" command) [0-' + (plugins.length - 1) + ']');
+					} else {
+						plugin.stop();
+					}
+				}
+			} else if( cmd === 'install' ) {
+				console.error('USAGE: "' + cmd + ' (pluginId)[@(version)] || (git or file url)"');
+			} else if( cmd === 'uninstall' ) {
+				console.error('USAGE: "' + cmd + ' (pluginId)[@(version)]"');
+			} else if( cmd === 'help' || cmd === 'h' || cmd === '?' ) {
 				var table = new Table({
 					chars: { 'top': '' , 'top-mid': '' , 'top-left': '' , 'top-right': ''
 						, 'bottom': '' , 'bottom-mid': '' , 'bottom-left': '' , 'bottom-right': ''
@@ -103,19 +140,18 @@ CLInterface.prototype = {
 				table.push(['start {index}', 'start plugin']);
 				table.push(['stop {index}', 'stop plugin']);
 				table.push(['stop all', 'stop all plugins']);
-				table.push(['install {pluginId} {version}', 'install new plugin']);
-				table.push(['uninstall {pluginId} {version}', 'uninstall selected plugin']);
-				table.push(['quit || q || exit || bye', 'quit plugin.system']);
+				table.push(['install (pluginId)[@(version)] || (git or file url)', 'install new plugin']);
+				table.push(['uninstall (pluginId)[@(version)]', 'uninstall selected plugin']);
+				table.push(['quit || q || exit || bye', 'quit process']);
 				table.push(['help || h || ?', 'help']);
 				console.log(table.toString());
-			} else if ( text === 'quit' || text === 'q' || text === 'exit' || text === 'exit' ) {
+			} else if ( cmd === 'quit' || cmd === 'q' || cmd === 'exit' || cmd === 'exit' ) {
 				process.exit();
-			} else if( text ) {
-				console.log('"' + text + '" is unknown command.');
+			} else if( cmd ) {
+				console.log('"' + cmd + '" is unknown command.');
 			}
 			
-			if( app ) process.stdout.write('plexi> ');
-			else process.stdout.write('> ');
+			process.stdout.write('$ ');
 		});
 	}
 }

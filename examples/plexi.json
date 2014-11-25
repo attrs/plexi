@@ -1,10 +1,18 @@
 {
 	"env": {},
 	"properties": {},
-	"plugins": {
-		"plexi.workbench": {
+	"preferences": {
+		"plexi.http": {
+			"port": 9090
 		},
-		"plexi.printingengine": {
+		"a": {
+			"key": "a"
+		},
+		"b": {
+			"key": "b"
+		},
+		"c": {
+			"key": "c"
 		}
 	}
 }

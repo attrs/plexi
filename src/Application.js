@@ -7,9 +7,10 @@ npm.on('log', function(message) {
 });
 
 var Plugin = require('./Plugin.js');
-var PluginGroup = require('./PluginGroup.js');
+var PluginManager = require('./PluginManager.js');
 var Workspace = require('./Workspace.js');
 var ApplicationError = require('./ApplicationError.js');
+var EventEmitter = require('events').EventEmitter;
 
 if( !String.prototype.startsWith ) {
 	String.prototype.startsWith = function(s) {
@@ -48,139 +49,106 @@ var rmdirRecursive = function(path) {
     }
 };
 
-var Application = function Application(homedir, properties) {
+var Application = function(homedir, argv) {
 	if( !homedir ) throw new Error('missing home directory', homedir);
 	
-	if( typeof(properties) !== 'object' ) properties = {};
-	this.properties = properties || {};
-	this.load(homedir);
-	
-	var self = this;
+	this.load(homedir, argv);
 	this.detect();
-	this.start();
 };
 
 Application.prototype = {
-	load: function load(homedir) {
-		var pref_file = path.join(homedir, 'plexi.json');
+	load: function(homedir, argv) {
+		var home = this.HOME = homedir;
 		
-		this.HOME = homedir;
-		this.PREFERENCE_FILE = pref_file;
+		var pkg = require(path.join(home, 'package.json'));
+		var plexi = pkg.plexi || {};
+		var dependencies = plexi.dependencies || {};
 		
-		if( fs.existsSync(pref_file) && fs.statSync(pref_file).isFile() ) {
-			var preference = fs.readFileSync(pref_file, 'utf-8');
-			var env = preference.env || {};
+		var preferences, env;
+		
+		// read preference file
+		if( true ) {		
+			var pref_js_file = path.join(home, 'plexi.js');
+			var pref_json_file = path.join(home, 'plexi.json');
 			
-			this.PLUGINS_DIR = path.join(this.HOME, env.plugins || 'plugins');
-			this.WORKSPACE_DIR = path.join(this.HOME, env.workspace || 'workspace');
-			this.LOG_DIR = path.join(this.HOME, env.logs || 'logs');
-			
-			if( !fs.existsSync(this.PLUGINS_DIR) ) fs.mkdirSync(this.PLUGINS_DIR);
-			if( !fs.existsSync(this.WORKSPACE_DIR) ) fs.mkdirSync(this.WORKSPACE_DIR);
-			if( !fs.existsSync(this.LOG_DIR) ) fs.mkdirSync(this.LOG_DIR);
-
-			try {				
-				var props = this.properties;				
-				props['home'] = this.HOME;
-				props['preference.file'] = this.PREFERENCE_FILE;
-				props['workspace.dir'] = this.WORKSPACE_DIR;
-				props['plugins.dir'] = this.PLUGINS_DIR;
-				props['log.dir'] = this.LOG_DIR;
-
-				for(var k in props) {
-					var value = props[k] || '';
-					preference = preference.split('{' + k + '}').join(value);
-				}
-				
-				preference = preference.split('\\').join('/');
-				preference = JSON.parse(preference);
-			} catch(err) {
-				throw new ApplicationError('application_load_error:config_file_parse:' + pref_file + ':' + err.message, err);
+			if( fs.existsSync(pref_js_file) && fs.statSync(pref_js_file).isFile() ) {
+				preferences = require(pref_js_file);
+				this.PREFERENCES_FILE = pref_js_file;
+			} else if( fs.existsSync(pref_json_file) && fs.statSync(pref_json_file).isFile() ) {
+				preferences = require(pref_json_file);
+				this.PREFERENCES_FILE = pref_json_file;
+			} else {
+				preferences = {};
 			}
-		
-			// setup instance attributes
-			this.preference = preference;
-		} else {
-			this.preference = {env:{},plugins:{}};
 		}
 		
-		this.plugins = {};
-		this.workspaces = {};
-	},
-	detect: function detect(fn) {
-		var files = fs.readdirSync(this.PLUGINS_DIR);
+		// read env
+		env = preferences.env || {};
 		
-		for(var i=0; i < files.length; i++) {
-			var dirname = files[i];			
-			if( dirname.startsWith('-') || !~dirname.indexOf('@') ) continue;
+		this.PLUGINS_DIR = path.join(home, env['plugins.dir'] || 'plexi_modules');
+		this.WORKSPACE_DIR = path.join(home, env['workspace.dir'] || 'workspace');
 		
-			var dir = path.join(this.PLUGINS_DIR, dirname);
+		//if( !fs.existsSync(this.PLUGINS_DIR) ) fs.mkdirSync(this.PLUGINS_DIR);
+		//if( !fs.existsSync(this.WORKSPACE_DIR) ) fs.mkdirSync(this.WORKSPACE_DIR);
+		
+		// read properties
+		var properties = preferences.properties || {};
+		if( typeof(argv) === 'object' ) {
+			for( var key in argv ) {
+				if( !key || !argv.hasOwnProperty(key) ) continue;
+				properties[key] = argv[key];
+			}
+		}
+		
+		properties['home'] = this.HOME;
+		properties['preferences.file'] = this.PREFERENCES_FILE;
+		properties['workspace.dir'] = this.WORKSPACE_DIR;
+		properties['plugins.dir'] = this.PLUGINS_DIR;
 
+		try {
+			preferences = JSON.stringify(preferences);
+			for(var k in properties) {
+				var value = properties[k] || '';
+				preferences = preferences.split('{' + k + '}').join(value);
+			}
+			
+			preferences = preferences.split('\\').join('/');
+			preferences = JSON.parse(preferences);
+		} catch(err) {
+			throw new ApplicationError('application_load_error:config_file_parse:' + pref_file + ':' + err.message, err);
+		}
+	
+		// setup instance attributes
+		this.preferences = preferences;
+		this.workspaces = {};
+		this.plugins = new PluginManager();
+		
+		// set host plugin
+		this.plugins.host(new Plugin(this, process.cwd()));
+	},
+	detect: function() {		
+		if( !fs.existsSync(this.PLUGINS_DIR) ) return;
+	
+		var files = fs.readdirSync(this.PLUGINS_DIR);
+	
+		for(var i=0; i < files.length; i++) {
+			var dirname = files[i];
+			
+			if( dirname.startsWith('-') || !~dirname.indexOf('@') ) continue;
+	
+			var dir = path.join(this.PLUGINS_DIR, dirname);
 			var stat = fs.statSync(dir);
 			if( stat.isDirectory() ) {
 				var plugin = new Plugin(this, dir);
-			
-				if( plugin instanceof Plugin ) {
-					var id = plugin.pluginId;
-					var plugingroup = this.plugins[id];
-					if( !plugingroup ) {
-						plugingroup = new PluginGroup(id);
-						this.plugins[id] = plugingroup;
-					}
+				this.plugins.add(plugin);
+			}
+		}
+	},
+	start: function() {
 		
-					plugingroup.add(plugin);
-			
-					console.log('* detected', plugin.pluginId, plugin.version);
-					this.fire('detected', {plugin:plugin});
-				} else {
-					throw new ApplicationError('invalid_plugin:' + dir);
-				}
-			}
-		}
 	},
-	start: function start() {		
-		for(var id in this.plugins) {
-			var plugin = this.get(id);
-			if( plugin.status === Plugin.STATUS_DETECTED ) plugin.start();
-		}
-	},
-	exists: function exists(pluginId, version) {
-		return (this.plugins.get(pluginId, version) ) ? true : false;
-	},
-	all: function() {
-		var result = [];
-		for(var k in this.plugins) {
-			var plugingroup = this.plugins[k];
-			if( plugingroup instanceof PluginGroup ) {
-				var plugins = plugingroup.all();
-				
-				for(var j=0; j < plugins.length; j++) {
-					var plugin = plugins[j];
-					result.push(plugin);
-				}				
-			}
-		}
-		return result;
-	},
-	group: function(pluginId) {
-		return this.plugins[pluginId];
-	},
-	groups: function(pluginId) {
-		var result = [];
-		for(var k in this.plugins) {
-			var plugingroup = this.plugins[k];
-			if( plugingroup instanceof PluginGroup ) {
-				result.push(plugingroup);
-			}
-		}
-		return result;	
-	},
-	get: function(pluginId, version) {
-		var plugingroup = this.plugins[pluginId];
-		if( plugingroup ) {
-			return plugingroup.get(version);
-		}
-		return null;
+	plugins: function() {
+		return this.plugins;
 	},
 	workspace: function(pluginId) {
 		if( !pluginId ) throw new ApplicationError('missing:pluginId');
@@ -193,24 +161,22 @@ Application.prototype = {
 
 		var ws = this.workspaces[pluginId];
 		if( !ws ) {
-			ws = new Workspace(path.join(this.WORKSPACE_DIR, pluginId));
+			ws = new Workspace(this.WORKSPACE_DIR, pluginId);
 			this.workspaces[pluginId] = ws;
 		}
 
 		return ws;
 	},
-	options: function(pluginId, version) {
-		var pref = this.preference.plugins;
-		if( pref ) {			
-			var options = pref[pluginId];
+	preference: function(pluginId, version) {
+		var prefs = this.preferences.preferences;
+		if( prefs ) {			
+			var pref = prefs[pluginId];
 			
 			if( version ) {
-				options = pref[pluginId + '@' + version] || options;
+				pref = prefs[pluginId + '@' + version] || pref;
 			}
 			
-			if( options ) {
-				return JSON.parse(JSON.stringify(options));
-			}
+			if( pref ) return JSON.parse(JSON.stringify(pref));
 		}
 
 		return null;

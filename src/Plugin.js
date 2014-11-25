@@ -5,7 +5,6 @@ var EventEmitter = require('events').EventEmitter;
 var util = require("util");
 var ApplicationError = require('./ApplicationError.js');
 
-
 // Plugin Context
 var PluginContext = function PluginContext(plugin) {
 	Object.defineProperty(this, 'plugin', {
@@ -31,11 +30,11 @@ var PluginContext = function PluginContext(plugin) {
 		}
 	});
 	
-	Object.defineProperty(this, 'options', {
+	Object.defineProperty(this, 'preference', {
 		enumerable: true,
 		configurable: false,
 		get: function() {
-			return plugin.options;
+			return plugin.preference;
 		}
 	});
 
@@ -90,33 +89,25 @@ PluginContext.prototype = {
 	require: function(pluginId) {
 		var caller = this.plugin;
 		
-		var plugin = caller.imports[pluginId];
+		var plugin = caller.dependencies[pluginId];
 		if( plugin ) {
-			if( plugin.type == Plugin.TYPE_SERVICE ) {					
-				if( plugin.status !== Plugin.STATUS_STARTED ) plugin.start();
+			if( plugin.status !== Plugin.STATUS_STARTED ) plugin.start();
 
-				var exports = plugin.exports;
-
-				if( !exports ) return {};
-				
-				var result = {};
-				for(var key in exports) {
-					var o = exports[key];
-					if( typeof(o) === 'function' ) {
-						result[key] = (function(o) {
-							return function() {
-								return o.apply(caller, arguments);
-							}
-						})(o);
-					} else {
-						result[key] = o;
-					}
+			var exports = plugin.exports || {};			
+			var result = {};
+			
+			for(var key in exports) {
+				var o = exports[key];
+				if( typeof(o) === 'function' ) {
+					exports[key] = (function(o) {
+						return function() {
+							return o.apply(caller, arguments);
+						}
+					})(o);
 				}
-
-				return result;
-			} else {
-				return plugin.exports;
 			}
+
+			return result;
 		} else {
 			throw new ApplicationError('[' + caller.pluginId + '-' + caller.version + ']: imported plugin [' + pluginId + '] is found');
 		}
@@ -126,21 +117,9 @@ PluginContext.prototype = {
 };
 
 // Plugin Identity
-var PluginIdentity = function PluginIdentity(name) {
-	if( !name || typeof(name) !== 'string' ) throw new ApplicationError('invalid plugin identity:' + name);
-
-	var pos = name.lastIndexOf('@');
-	var pluginId = name;
-	var version;
-
-	if( pos > 0 ) {
-		pluginId = name.substring(0, pos);
-		version = name.substring(pos + 1);
-		//console.log('version', version, semver.valid(version));
-	}
-	
-	if( !pluginId ) throw new ApplicationError('missing:pluginId:' + name);
-	if( !version ) throw new ApplicationError('missing:version:' + name);
+var PluginIdentity = function PluginIdentity(pluginId, version) {	
+	if( !pluginId || typeof(pluginId) !== 'string' ) throw new ApplicationError('missing:pluginId:' + name);
+	if( !version || typeof(version) !== 'string' ) throw new ApplicationError('missing:version:' + name);
 
 	Object.defineProperty(this, 'pluginId', {
 		value: pluginId,
@@ -162,38 +141,18 @@ PluginIdentity.prototype = {
 		return semver.satisfies(this.version, match);
 	},
 	toString: function() {
-		return this.pluginId + '(' + this.version + ')';
+		return this.pluginId + '@' + this.version;
 	}
 };
 
 
 var Plugin = function Plugin(application, dir) {
-	var identity = new PluginIdentity(path.basename(dir));
+	if( !application ) throw new ApplicationError('illegal_argument(application):' + application);
+	if( typeof(dir) !== 'string' ) throw new ApplicationError('illegal_argument(dir):' + dir);
 
 	Object.defineProperty(this, 'application', {
 		value: application,
 		enumerable: false,
-		configurable: false,
-		writable: false
-	});
-
-	Object.defineProperty(this, 'identity', {
-		value: identity,
-		enumerable: false,
-		configurable: false,
-		writable: false
-	});
-
-	Object.defineProperty(this, 'pluginId', {
-		value: identity.pluginId,
-		enumerable: true,
-		configurable: false,
-		writable: false
-	});
-
-	Object.defineProperty(this, 'version', {
-		value: identity.version,
-		enumerable: true,
 		configurable: false,
 		writable: false
 	});
@@ -210,15 +169,6 @@ var Plugin = function Plugin(application, dir) {
 		configurable: false,
 		get: function() {
 			return application.workspace(this);
-		}
-	});
-
-	var ee = new EventEmitter();
-	Object.defineProperty(this, 'ee', {
-		enumerable: false,
-		configurable: false,
-		get: function() {
-			return ee;
 		}
 	});
 
@@ -240,131 +190,108 @@ Plugin.STATUS_STARTING = 'starting';
 Plugin.STATUS_STOPPED = 'stopped';
 Plugin.STATUS_STOPPING = 'stopping';
 Plugin.STATUS_ERROR = 'error';
-Plugin.TYPE_SERVICE = 'service';
-Plugin.TYPE_LIBRARY = 'library';
-Plugin.TYPE_INVALID = 'invalid';
 
 Plugin.prototype = {
 	path: function(f) {
 		return path.join(this.home, f);
 	},
 	detect: function detect() {
-		var manifest_file = path.join(this.home, 'package.json');
+		var manifest = require(path.join(this.home, 'package.json'));
+		var pluginId = manifest.name;
+		var version = manifest.version;
+		var plexi = manifest.plexi || {};
 		
-		if( fs.existsSync(manifest_file) ) {
-			var manifest = fs.readFileSync(manifest_file, 'utf-8');
-			if( !manifest )
-				throw new ApplicationError('plugin_manifest_error:package_json_not_found:' + this.identity + ':' + manifest_file);
+		if( !pluginId || typeof(pluginId) !== 'string' )
+			throw new ApplicationError('package_error:package.json/name', manifest);
+		if( !version || typeof(version) !== 'string' )
+			throw new ApplicationError('package_error:package.json/version', manifest);
+		
+		Object.defineProperty(this, 'identity', {
+			value: new PluginIdentity(pluginId, version),
+			enumerable: false,
+			configurable: false,
+			writable: false
+		});
 
-			try {
-				manifest = JSON.parse(manifest);
-			} catch(err) {
-				throw new ApplicationError('plugin_manifest_error:package_json_parse_error:' + this.identity + ':' + manifest_file + ':' + err.message, err);
-			}
+		Object.defineProperty(this, 'pluginId', {
+			value: pluginId,
+			enumerable: true,
+			configurable: false,
+			writable: false
+		});
 
-			if( typeof(manifest.name) !== 'string' ) throw new ApplicationError('plugin_manifest_error:manifest.name(pluginId):' + this.identity.toString(), manifest);
-			if( typeof(manifest.version) !== 'string' ) throw new ApplicationError('plugin_manifest_error:manifest.version:' + this.identity.toString(), manifest);
-			if( typeof(manifest.activator) !== 'string' ) throw new ApplicationError('plugin_manifest_error:manifest.activator:' + this.identity.toString(), manifest);
-
-			if( manifest.name != this.pluginId ) throw new ApplicationError('plugin_manifest_error:pluginId(name)_does_not_match:' + this.identity.toString(), manifest);
-			if( manifest.version != this.version ) throw new ApplicationError('plugin_manifest_error:version_does_not_match:' + this.identity.toString(), manifest);
-			
-			var application = this.application;
-			var options = this.application.options(this.pluginId, this.version) || {};	
-			var activator = null;
-			var exports = {};
-			var imports = manifest.imports || {};
-						
-			if( manifest.activator ) {
-				activator = require(path.join(this.home, manifest.activator));
-				
-				if( typeof(activator) === 'function' ) {
-					activator = {start:activator};
-				} else if( typeof(activator) === 'object' ) {
-					if( typeof(activator.start) !== 'function' ) {
-						activator = null;
-						console.error('activator.start must be a function', this.identity.toString());
-					}
+		Object.defineProperty(this, 'version', {
+			value: version,
+			enumerable: true,
+			configurable: false,
+			writable: false
+		});
+		
+		var application = this.application;
+		var preference = this.application.preference(this.pluginId, this.version) || {};	
+		var activator = null;
+		var exports = {};
 					
-					if( activator.stop && typeof(activator.stop) !== 'function' ) {
-						activator.stop = null;
-						console.error('activator.stop must be a function', this.identity.toString());
-					}
-				} else {
+		if( plexi.activator ) {
+			activator = require(path.join(this.home, plexi.activator));
+			
+			if( typeof(activator) === 'function' ) {
+				activator = {start:activator};
+			} else if( typeof(activator) === 'object' ) {
+				if( typeof(activator.start) !== 'function' ) {
 					activator = null;
-					console.error('activator not found. ignored', this.identity.toString());
+					console.error('activator.start must be a function', this.identity.toString());
 				}
+				
+				if( activator.stop && typeof(activator.stop) !== 'function' ) {
+					activator.stop = null;
+					console.error('activator.stop must be a function', this.identity.toString());
+				}
+			} else {
+				activator = null;
+				console.error('activator not found. ignored', this.identity.toString());
 			}
-			
-			var type = activator ? Plugin.TYPE_SERVICE : Plugin.TYPE_LIBRARY;
-			
-			Object.defineProperty(this, 'activator', {
-				value: activator,
-				enumerable: true,
-				configurable: false,
-				writable: false
-			});
-
-			Object.defineProperty(this, 'manifest', {
-				value: manifest,
-				enumerable: true,
-				configurable: false,
-				writable: false
-			});
-
-			Object.defineProperty(this, 'options', {
-				value: options,
-				enumerable: true,
-				configurable: false,
-				writable: false
-			});
-			
-			Object.defineProperty(this, 'exports', {
-				enumerable: true,
-				configurable: false,
-				get: function() {
-					return exports;
-				},
-				set: function(o) {
-					//if( typeof(o) !== 'object' ) throw new ApplicationError('plugin.exports must be an object');
-					exports = o;
-				}
-			});
-			
-			Object.defineProperty(this, 'imports', {
-				enumerable: true,
-				configurable: true,
-				get: function() {
-					var result = {};
-					for( var k in imports ) {
-						if( !imports.hasOwnProperty(k) ) continue;
-
-						var v = imports[k];
-						if( typeof(v) === 'string' ) {
-							result[k] = application.get(k, v);
-						}
-					}
-					return result;
-				}
-			});
-			
-			Object.defineProperty(this, 'type', {
-				value: type,
-				enumerable: true,
-				configurable: true,
-				writable: false
-			});
-		} else {
-			Object.defineProperty(this, 'type', {
-				value: Plugin.TYPE_INVALID,
-				enumerable: true,
-				configurable: true,
-				writable: false
-			});
-			
-			this.status = Plugin.STATUS_ERROR;
-			return;
 		}
+				
+		Object.defineProperty(this, 'activator', {
+			value: activator,
+			enumerable: true,
+			configurable: false,
+			writable: false
+		});
+
+		Object.defineProperty(this, 'manifest', {
+			value: manifest,
+			enumerable: true,
+			configurable: false,
+			writable: false
+		});
+
+		Object.defineProperty(this, 'preference', {
+			value: preference,
+			enumerable: true,
+			configurable: false,
+			writable: false
+		});
+		
+		Object.defineProperty(this, 'exports', {
+			enumerable: true,
+			configurable: false,
+			get: function() {
+				return exports;
+			},
+			set: function(o) {
+				//if( typeof(o) !== 'object' ) throw new ApplicationError('plugin.exports must be an object');
+				if( !o ) return console.warn('exports was null', o); 
+				exports = o;
+			}
+		});
+		
+		Object.defineProperty(this, 'dependencies', {
+			enumerable: true,
+			configurable: true,
+			value: plexi.dependencies || {}
+		});
 		
 		this.status = Plugin.STATUS_DETECTED;
 	},
@@ -377,8 +304,8 @@ Plugin.prototype = {
 		console.log('* starting ' + this.identity + '...');
 		
 		var ctx = this.ctx;
-		var imports = this.imports;
-		for(var pluginId in imports) {
+		var dependencies = this.dependencies;
+		for(var pluginId in dependencies) {
 			if( pluginId === this.pluginId ) continue;
 			ctx.require(pluginId);
 		}
