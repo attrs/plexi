@@ -120,15 +120,14 @@ PluginContext.prototype = {
 					result[key] = o;
 				}
 			}
-			
+
+			this.application.emit('require', pluginId, plugin, current, result);			
 			//console.log('\t- [' + plugin.identity.toString() + '] exports', plugin.exports, result);
 
 			return result;
 		} else {
 			throw new ApplicationError('[' + caller.pluginId + '-' + caller.version + ']: imported plugin [' + pluginId + '] is found');
 		}
-
-		return null;
 	}
 };
 
@@ -306,6 +305,8 @@ Plugin.prototype = {
 		});
 		
 		this.status = Plugin.STATUS_DETECTED;
+		
+		this.application.emit('detected', this);
 	},
 	start: function start() {
 		if( this.status === Plugin.STATUS_STARTED ) {
@@ -331,8 +332,7 @@ Plugin.prototype = {
 		}
 		
 		this.status = Plugin.STATUS_STARTED;
-		
-		console.log('* [' + this.identity + '] plugin started!');
+		this.application.emit('started', this);
 
 		return result;
 	},
@@ -348,7 +348,8 @@ Plugin.prototype = {
 			result = activator.stop.apply(this, [this.ctx]);
 		}
 		
-		this.status = Plugin.STATUS_STOPPED;
+		this.status = Plugin.STATUS_STOPPED;		
+		this.application.emit('stopped', this);
 
 		return result;
 	}

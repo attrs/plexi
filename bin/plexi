@@ -21,7 +21,7 @@ if( argv.install ) {
 } else if( argv.start ) {
 	console.log('plexi starting...', argv);	
 
-	var app = new Application(process.cwd(), argv);
+	var app = new Application(process.cwd(), argv).start();
 	cli.application(app).start();
 } else {
 	console.log('input command:install,update,start');

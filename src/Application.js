@@ -54,9 +54,30 @@ var Application = function(homedir, argv) {
 	if( !homedir ) throw new Error('missing home directory', homedir);
 	
 	if( argv && argv.dev ) this.devmode = true;
+	if( argv && argv.debug ) this.debug = true;
+	
+	this.ee = new EventEmitter();
+	
+	if( this.debug ) {
+		this.on('loaded', function() {
+			console.log('* plexi application loaded');
+		}).on('detected', function(plugin) {
+			console.log('* [' + plugin.identity + '] plugin detected!');
+		}).on('bound', function(plugin) {
+			console.log('* [' + plugin.identity + '] plugin bound!');
+		}).on('started', function(plugin) {
+			console.log('* [' + plugin.identity + '] plugin started!');
+		}).on('stopped', function(plugin) {
+			console.log('* [' + plugin.identity + '] plugin stopped!');
+		}).on('detect-error', function(plugin) {
+			console.log('* [' + plugin.identity + '] plugin error!');
+		}).on('require', function(pluginId, plugin, caller, exports) {
+			console.log('* [' + caller.identity + '] plugin require "' + pluginId + '" [' + plugin.identity + ']');
+			console.log('\texports: ', exports);
+		});
+	}
 	
 	this.load(homedir, argv);
-	this.detect();
 };
 
 Application.prototype = {
@@ -133,10 +154,13 @@ Application.prototype = {
 		this.properties = properties;
 		this.preferences = preferences.preferences || {};
 		this.workspaces = {};
-		this.plugins = new PluginManager();
+		this.plugins = new PluginManager(this);
 		
 		// set host plugin
 		this.plugins.host(new Plugin(this, process.cwd()));
+		
+		this.detect();
+		this.emit('loaded', this);
 	},
 	detect: function() {		
 		if( !fs.existsSync(this.PLUGINS_DIR) ) return;
@@ -174,7 +198,10 @@ Application.prototype = {
 		}
 	},
 	start: function() {
-		
+		var host = this.plugins.host();
+		if( host ) host.start();
+		this.emit('application-started', this);
+		return this;
 	},
 	plugins: function() {
 		return this.plugins;
@@ -211,11 +238,22 @@ Application.prototype = {
 		return null;
 	},
 	on: function(type, fn) {
+		this.ee.on(type, fn);
+		return this;
 	},
-	un: function(type, fn) {
+	once: function(type, fn) {
+		this.ee.once(type, fn);
+		return this;
 	},
-	fire: function(type, values) {		
+	off: function(type, fn) {
+		this.ee.off(type, fn);
+		return this;
+	},
+	emit: function() {
+		this.ee.emit.apply(this.ee, arguments);
+		return this;
 	}
 };
+
 
 module.exports = Application;

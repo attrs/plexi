@@ -55,7 +55,8 @@ PluginGroup.prototype = {
 };
 
 
-function PluginManager() {
+function PluginManager(app) {
+	this.app = app;
 	this.groups = {};
 }
 
@@ -64,12 +65,17 @@ PluginManager.prototype = {
 		if( !arguments.length ) return this._host;
 		this.add(plugin);
 		this._host = plugin;
+		return this;
+	},
+	isHost: function(plugin) {
+		return (this._host === plugin) ? true : false;	
 	},
 	add: function(plugin) {
 		if( !(plugin instanceof Plugin) ) throw new ApplicationError('illegal_arguments:plugin', plugin);
 		var group = this.groups[plugin.pluginId];
 		if( !group ) group = this.groups[plugin.pluginId] = new PluginGroup(plugin.pluginId);
 		group.add(plugin);
+		this.app.emit('bound', plugin);
 		return this;
 	},
 	get: function(pluginId, version) {
