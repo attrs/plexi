@@ -38,10 +38,10 @@
 	},
 	"dependencies": {
 		"cli-table": "*",
+		"mkdirp": "*",
 		"attrs.argv": "*",
 		"npm": "^2.1.5",
-		"semver": "*",
-		"attrs.tasks": "*"
+		"semver": "*"
 	},
 	"keywords": [
 		"plexi",

@@ -7,6 +7,7 @@ npm.on('log', function(message) {
 });
 
 var Plugin = require('./Plugin.js');
+var semver = require('semver');
 var PluginManager = require('./PluginManager.js');
 var Workspace = require('./Workspace.js');
 var ApplicationError = require('./ApplicationError.js');
@@ -52,6 +53,8 @@ var rmdirRecursive = function(path) {
 var Application = function(homedir, argv) {
 	if( !homedir ) throw new Error('missing home directory', homedir);
 	
+	if( argv && argv.dev ) this.devmode = true;
+	
 	this.load(homedir, argv);
 	this.detect();
 };
@@ -91,20 +94,6 @@ Application.prototype = {
 		//if( !fs.existsSync(this.PLUGINS_DIR) ) fs.mkdirSync(this.PLUGINS_DIR);
 		//if( !fs.existsSync(this.WORKSPACE_DIR) ) fs.mkdirSync(this.WORKSPACE_DIR);
 		
-		// read properties
-		var properties = preferences.properties || {};
-		if( typeof(argv) === 'object' ) {
-			for( var key in argv ) {
-				if( !key || !argv.hasOwnProperty(key) ) continue;
-				properties[key] = argv[key];
-			}
-		}
-		
-		properties['home'] = this.HOME;
-		properties['preferences.file'] = this.PREFERENCES_FILE;
-		properties['workspace.dir'] = this.WORKSPACE_DIR;
-		properties['plugins.dir'] = this.PLUGINS_DIR;
-
 		try {
 			preferences = JSON.stringify(preferences);
 			for(var k in properties) {
@@ -117,9 +106,32 @@ Application.prototype = {
 		} catch(err) {
 			throw new ApplicationError('application_load_error:config_file_parse:' + pref_file + ':' + err.message, err);
 		}
+		
+		// read properties
+		var properties = {};
+		if( typeof(argv) === 'object' ) {
+			for( var key in argv ) {
+				if( !key || !argv.hasOwnProperty(key) ) continue;
+				properties[key] = argv[key];
+			}
+		}		
+		
+		if( preferences.properties ) {
+			for( var key in preferences.properties ) {
+				if( !key || !preferences.properties.hasOwnProperty(key) ) continue;
+				properties[key] = preferences.properties[key];
+			}
+		}
+		
+		properties['home'] = this.HOME;
+		properties['preferences.file'] = this.PREFERENCES_FILE;
+		properties['workspace.dir'] = this.WORKSPACE_DIR;
+		properties['plugins.dir'] = this.PLUGINS_DIR;
 	
 		// setup instance attributes
-		this.preferences = preferences;
+		this.links = plexi.links || {};
+		this.properties = properties;
+		this.preferences = preferences.preferences || {};
 		this.workspaces = {};
 		this.plugins = new PluginManager();
 		
@@ -141,6 +153,23 @@ Application.prototype = {
 			if( stat.isDirectory() ) {
 				var plugin = new Plugin(this, dir);
 				this.plugins.add(plugin);
+			}
+		}
+		
+		// devmode 라면 links 를 활성화
+		if( this.devmode ) {
+			var links = this.links;
+			for(var pluginId in links) {
+				var pathes = links[pluginId];
+				if( pathes ) {
+					if( !Array.isArray(pathes) ) pathes = [pathes];
+					
+					for(var i=0; i < pathes.length; i++) {
+						var dir = pathes[i];
+						var plugin = new Plugin(this, dir);
+						this.plugins.add(plugin);
+					}
+				}
 			}
 		}
 	},
@@ -168,7 +197,7 @@ Application.prototype = {
 		return ws;
 	},
 	preference: function(pluginId, version) {
-		var prefs = this.preferences.preferences;
+		var prefs = this.preferences;
 		if( prefs ) {			
 			var pref = prefs[pluginId];
 			

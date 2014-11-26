@@ -6,19 +6,24 @@ var CLInterface = function CLInterface() {};
 CLInterface.prototype = {
 	application: function(app) {
 		this.application = app;
+		return this;
 	},
 	stop: function() {
 		this.stopped = true;
 		process.stdin.pause();
+		return this;
 	},
 	start: function() {
 		var self = this;
 
 		process.stdin.resume();
 		process.stdin.setEncoding('utf-8');
-		process.stdout.write('\n$ ');
+		process.stdout.write('\nplexi$ ');
+		
+		var progressing = false;
 
 		process.stdin.on('data', function (text) {
+			if( progressing ) return;
 			if( self.stopped ) return;
 			if( !text ) text = '';
 
@@ -41,12 +46,16 @@ CLInterface.prototype = {
 					});
 					
 					var host = app.plugins.host();
+					var devmode = app.devmode ? true : false;
 
 					table.push(['home  ', app.HOME]);
+					table.push(['devmode  ', devmode]);
 					table.push(['preferences.file  ', app.PREFERENCES_FILE]);
 					table.push(['plugins.dir  ', app.PLUGINS_DIR]);
 					table.push(['workspace.dir  ', app.WORKSPACE_DIR]);
-					table.push(['host  ', host && (host.identity.toString() + ' [' + host.home + ']')]);
+					table.push(['host plugin  ', host && (host.identity.toString() + ' [' + host.home + ']')]);
+					if( devmode ) table.push(['links  ', JSON.stringify(app.links,'','\t')]);
+					table.push(['properties  ', JSON.stringify(app.properties,'','\t')]);
 
 					console.log(table.toString());
 				} else {
@@ -98,7 +107,7 @@ CLInterface.prototype = {
 				} else {
 					console.log('empty!');
 				}
-			} else if( cmd === 'start' ) {
+			} else if( cmd === 'start' || cmd === 's' ) {
 				if( !arg.length ) {
 					console.error('USAGE: "' + cmd + ' (index)"');
 				} else {
@@ -110,7 +119,7 @@ CLInterface.prototype = {
 						plugin.start();
 					}
 				}
-			} else if( cmd === 'stop' ) {
+			} else if( cmd === 'stop' || cmd === 'x' ) {
 				if( !arg.length ) {
 					console.error('USAGE: "' + cmd + ' (index)"');
 				} else {
@@ -124,8 +133,34 @@ CLInterface.prototype = {
 				}
 			} else if( cmd === 'install' ) {
 				console.error('USAGE: "' + cmd + ' (pluginId)[@(version)] || (git or file url)"');
+				if( !arg.length ) {
+					console.error('USAGE: "' + cmd + ' (index)"');
+				} else {
+					var url = arg[0];
+					progressing = true;
+					app.plugins.install(url, function(err, result) {
+						progressing = false;
+						process.stdout.write('plexi$ ');
+						if( err ) return console.error('plugin install failure', err);
+						console.log('plugin installed successfully!', result);
+					});
+					return;
+				}
 			} else if( cmd === 'uninstall' ) {
 				console.error('USAGE: "' + cmd + ' (pluginId)[@(version)]"');
+				if( !arg.length ) {
+					console.error('USAGE: "' + cmd + ' (index)"');
+				} else {
+					var url = arg[0];
+					progressing = true;
+					app.plugins.uninstall(url, function(err, result) {
+						progressing = false;
+						process.stdout.write('plexi$ ');
+						if( err ) return console.error('plugin uninstall failure', err);
+						console.log('plugin uninstalled successfully!', result);
+					});
+					return;
+				}
 			} else if( cmd === 'help' || cmd === 'h' || cmd === '?' ) {
 				var table = new Table({
 					chars: { 'top': '' , 'top-mid': '' , 'top-left': '' , 'top-right': ''
@@ -151,8 +186,9 @@ CLInterface.prototype = {
 				console.log('"' + cmd + '" is unknown command.');
 			}
 			
-			process.stdout.write('$ ');
+			process.stdout.write('plexi$ ');
 		});
+		return this;
 	}
 }
 

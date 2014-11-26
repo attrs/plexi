@@ -4,7 +4,7 @@
 	"plexi": {
 		"activator": "activator.js",
 		"dependencies": {
-			"a": "*"
+			"a": "0.0.0"
 		}
 	}
 }

@@ -1,6 +1,9 @@
 module.exports = {
 	start: function(ctx) {
-		console.log('ctx', ctx);
-		console.log(ctx.identity.pluginId + '@' + ctx.identity.version + ' started');
+		console.log(ctx.identity.toString() + ' started');
+		
+		return {
+			a: true
+		};
 	}
 }

@@ -87,11 +87,23 @@ PluginContext.prototype = {
 		this.plugin.application.off(event, fn);
 	},
 	require: function(pluginId) {
-		var caller = this.plugin;
+		var current = this.plugin;
 		
-		var plugin = caller.dependencies[pluginId];
+		var version = current.dependencies[pluginId];
+		if( !version ) throw new ApplicationError('not found dependency:' + pluginId);
+		if( !semver.valid(version) ) version = '*';
+		var plugin = this.plugin.application.plugins.get(pluginId, version);
+		
 		if( plugin ) {
-			if( plugin.status !== Plugin.STATUS_STARTED ) plugin.start();
+			//console.log('\t- require -----------------------------------');
+			if( ~[Plugin.STATUS_DETECTED, Plugin.STATUS_STOPPED].indexOf(plugin.status) ) {
+				//console.log('\t- plugin', plugin.identity.toString());
+				//console.log('\t- caller', current.identity.toString());
+				
+				plugin.start();
+			} else if( plugin.status === Plugin.STATUS_ERROR ) {
+				throw new ApplicationError('plugin status is error', plugin.identity.toString());
+			}
 
 			var exports = plugin.exports || {};			
 			var result = {};
@@ -99,13 +111,17 @@ PluginContext.prototype = {
 			for(var key in exports) {
 				var o = exports[key];
 				if( typeof(o) === 'function' ) {
-					exports[key] = (function(o) {
+					result[key] = (function(o) {
 						return function() {
-							return o.apply(caller, arguments);
+							return o.apply(current, arguments);
 						}
 					})(o);
+				} else {
+					result[key] = o;
 				}
 			}
+			
+			//console.log('\t- [' + plugin.identity.toString() + '] exports', plugin.exports, result);
 
 			return result;
 		} else {
@@ -186,9 +202,7 @@ var Plugin = function Plugin(application, dir) {
 
 Plugin.STATUS_DETECTED = 'detected';
 Plugin.STATUS_STARTED = 'started';
-Plugin.STATUS_STARTING = 'starting';
 Plugin.STATUS_STOPPED = 'stopped';
-Plugin.STATUS_STOPPING = 'stopping';
 Plugin.STATUS_ERROR = 'error';
 
 Plugin.prototype = {
@@ -198,13 +212,13 @@ Plugin.prototype = {
 	detect: function detect() {
 		var manifest = require(path.join(this.home, 'package.json'));
 		var pluginId = manifest.name;
-		var version = manifest.version;
+		var version = semver.clean(manifest.version);
 		var plexi = manifest.plexi || {};
 		
 		if( !pluginId || typeof(pluginId) !== 'string' )
-			throw new ApplicationError('package_error:package.json/name', manifest);
-		if( !version || typeof(version) !== 'string' )
-			throw new ApplicationError('package_error:package.json/version', manifest);
+			throw new ApplicationError('missing_pluginId:package.json/name', manifest);
+		if( !version || !semver.valid(version) )
+			throw new ApplicationError('invalid_version:package.json/version', manifest);
 		
 		Object.defineProperty(this, 'identity', {
 			value: new PluginIdentity(pluginId, version),
@@ -281,9 +295,7 @@ Plugin.prototype = {
 				return exports;
 			},
 			set: function(o) {
-				//if( typeof(o) !== 'object' ) throw new ApplicationError('plugin.exports must be an object');
-				if( !o ) return console.warn('exports was null', o); 
-				exports = o;
+				exports = o || {};
 			}
 		});
 		
@@ -297,11 +309,9 @@ Plugin.prototype = {
 	},
 	start: function start() {
 		if( this.status === Plugin.STATUS_STARTED ) {
-			console.warn('cannot_start:already_started:' + this.identity + ':' + this.version);
+			console.warn('cannot_start:already_started:' + this.identity.toString() + ':' + this.version);
 			return;
 		}
-		
-		console.log('* starting ' + this.identity + '...');
 		
 		var ctx = this.ctx;
 		var dependencies = this.dependencies;
@@ -313,35 +323,22 @@ Plugin.prototype = {
 		var activator = this.activator;
 		var result;
 		if( activator && typeof(activator.start) === 'function' ) {
-			result = activator.start.apply(this, [this.ctx]);
+			this.exports = null;
+			var result = activator.start.apply(this, [this.ctx]);
+			if( result ) this.exports = result;
 
-			if( typeof(result) === 'function' ) {
-				this.status = Plugin.STATUS_STARTING;
-				var self = this;
-				result(function(err) {
-					if( err ) {
-						self.status = Plugin.STATUS_ERROR;
-						self.error = err;
-						console.error('plugin_start_error:' + this.identity + ':' + err.message, err);
-						return;
-					}
-
-					self.status = Plugin.STATUS_STARTED;
-				});
-			} else {
-				this.status = Plugin.STATUS_STARTED;
-			}
-		} else {
 			this.status = Plugin.STATUS_STARTED;
 		}
 		
-		console.log('* started ' + this.identity);
+		this.status = Plugin.STATUS_STARTED;
+		
+		console.log('* [' + this.identity + '] plugin started!');
 
 		return result;
 	},
 	stop: function stop() {
 		if( this.status !== Plugin.STATUS_STARTED ) {
-			console.warn('cannot_stop:not_started_yet:' + this.identity + ':' + this.status);
+			console.warn('cannot_stop:not_started_yet:' + this.identity.toString() + ':' + this.status);
 			return;
 		}
 
@@ -349,25 +346,9 @@ Plugin.prototype = {
 		var result;
 		if( activator && typeof(activator.stop) === 'function' ) {
 			result = activator.stop.apply(this, [this.ctx]);
-
-			if( typeof(result) === 'function' ) {
-				var self = this;
-				result(function(err) {
-					if( err ) {
-						self.status = Plugin.STATUS_ERROR;
-						self.error = err;
-						console.error('plugin_stop_error:' + this.identity + ':' + err.message, err);
-						return;
-					}
-
-					self.status = Plugin.STATUS_STOPPED;
-				});
-			} else {
-				this.status = Plugin.STATUS_STOPPED;
-			}
-		} else {
-			this.status = Plugin.STATUS_STOPPED;
 		}
+		
+		this.status = Plugin.STATUS_STOPPED;
 
 		return result;
 	}

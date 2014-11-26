@@ -1,14 +1,27 @@
 {
-	"name": "printingengine",
-	"description": "Pringting Engine Home",
+	"name": "plexi-example",
 	"version": "0.0.1",
 	"private": true,
 	"scripts": {
-		"install": "../bin/plexi install",
-		"start": "../bin/plexi start"	
+		"install": "./node_modules/plexi/bin/plexi install",
+		"update": "./node_modules/plexi/bin/plexi update",
+		"start": "./node_modules/plexi/bin/plexi start"
 	},
-	"main": "startup.js",
+	"main": "main.js",
 	"dependencies": {
 		"plexi": "*"
+	},
+	"plexi": {
+		"activator": "activator.js",
+		"dependencies": {
+			"c": "*"
+		},
+		"links": {
+			"plexi.http": "/Volumes/repository/git/attrs/plexi.http",
+			"plexi.auth": "/Volumes/repository/git/attrs/plexi.auth",
+			"ui.alien": "/Volumes/repository/git/attrs/ui-alien",
+			"plexi.workbench": "/Volumes/repository/git/attrs/plexi.workbench",
+			"plexi.monitor": "/Volumes/repository/git/attrs/plexi.monitor"
+		}
 	}
 }

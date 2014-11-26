@@ -46,7 +46,7 @@ PluginGroup.prototype = {
 				return semver.compare(b.version, a.version);
 			});
 		} else {
-			throw new ApplicationError('incompatible_plugin:' + plugin.pluginId, plugin);
+			throw new ApplicationError('invalid_plugin:' + plugin.pluginId, plugin);
 		}
 	},
 	toString: function() {
@@ -75,7 +75,7 @@ PluginManager.prototype = {
 	get: function(pluginId, version) {
 		var group = this.groups[pluginId];
 		if( group ) {
-			return group.get(version);
+			return group.version(version);
 		}
 		return null;
 	},
@@ -132,6 +132,12 @@ PluginManager.prototype = {
 		if( !plugin ) throw new ApplicationError('not_found:' + pluginId + '@' + version);
 		plugin.stop();
 		return this;
+	},
+	install: function(url) {
+		
+	},
+	unintall: function(id) {
+		
 	}
 };
 
