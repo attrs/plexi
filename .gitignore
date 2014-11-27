@@ -13,7 +13,7 @@ pids
 logs
 results
 node_modules
-examples/plugins
-examples/logs
+plexi_modules
+workspace
 
 npm-debug.log
