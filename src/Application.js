@@ -134,20 +134,7 @@ Application.prototype = {
 		
 		//if( !fs.existsSync(this.PLUGINS_DIR) ) fs.mkdirSync(this.PLUGINS_DIR);
 		//if( !fs.existsSync(this.WORKSPACE_DIR) ) fs.mkdirSync(this.WORKSPACE_DIR);
-		
-		try {
-			preferences = JSON.stringify(preferences);
-			for(var k in properties) {
-				var value = properties[k] || '';
-				preferences = preferences.split('{' + k + '}').join(value);
-			}
-			
-			preferences = preferences.split('\\').join('/');
-			preferences = JSON.parse(preferences);
-		} catch(err) {
-			throw new ApplicationError('application_load_error:config_file_parse:' + pref_file + ':' + err.message, err);
-		}
-		
+
 		// read properties
 		var properties = {};
 		if( typeof(argv) === 'object' ) {
@@ -169,6 +156,19 @@ Application.prototype = {
 		properties['workspace.dir'] = this.WORKSPACE_DIR;
 		properties['plugins.dir'] = this.PLUGINS_DIR;
 		properties['log.dir'] = this.LOG_DIR;
+		
+		try {
+			preferences = JSON.stringify(preferences);
+			for(var k in properties) {
+				var value = properties[k] || '';
+				preferences = preferences.split('{' + k + '}').join(value);
+			}
+			
+			preferences = preferences.split('\\').join('/');
+			preferences = JSON.parse(preferences);
+		} catch(err) {
+			throw new ApplicationError('application_load_error:config_file_parse:' + pref_file + ':' + err.message, err);
+		}
 	
 		// setup instance attributes
 		this.links = links;

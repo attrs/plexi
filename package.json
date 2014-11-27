@@ -1,6 +1,6 @@
 {
 	"name": "plexi",
-	"version": "0.1.0-alpha5",
+	"version": "0.1.0-alpha6",
 	"description": "OSGi style plugin module system",
 	"homepage": "https://github.com/attrs/plexi",
 	"repository": {
