@@ -1,3 +1,5 @@
-console.log('hello plexi!');
+var app = require('plexi').current();
 
-module.exports = 'hello plexi!';
+console.log('hello plexi main! current plexi app:', app.HOME);
+
+module.exports = app;

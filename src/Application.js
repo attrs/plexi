@@ -51,7 +51,8 @@ var rmdirRecursive = function(path) {
 };
 
 var Application = function(homedir, argv) {
-	if( !homedir ) throw new Error('missing home directory', homedir);
+	if( Application.instance ) throw new ApplicationError('already_initialized', Application.app);
+	if( !homedir ) throw new ApplicationError('missing home directory', homedir);
 	
 	if( argv && argv.dev ) this.devmode = true;
 	if( argv && argv.debug ) this.debug = true;
@@ -78,6 +79,8 @@ var Application = function(homedir, argv) {
 	}
 	
 	this.load(homedir, argv);
+	
+	Application.instance = this;
 };
 
 Application.prototype = {

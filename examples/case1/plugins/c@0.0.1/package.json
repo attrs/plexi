@@ -1,0 +1,10 @@
+{
+	"name": "c",
+	"version": "0.0.1",
+	"plexi": {
+		"activator": "activator.js",
+		"dependencies": {
+			"b": "*"
+		}
+	}
+}

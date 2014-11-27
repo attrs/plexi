@@ -126,7 +126,7 @@ PluginContext.prototype = {
 
 			return result;
 		} else {
-			throw new ApplicationError('[' + caller.pluginId + '-' + caller.version + ']: imported plugin [' + pluginId + '] is found');
+			throw new ApplicationError('[' + current.identity + ']: dependency plugin [' + pluginId + '] not found');
 		}
 	}
 };
