@@ -5,16 +5,16 @@
 	"scripts": {
 		"install": "./node_modules/plexi/bin/plexi install",
 		"update": "./node_modules/plexi/bin/plexi update",
-		"start": "./node_modules/plexi/bin/plexi start"
+		"start": "./node_modules/plexi/bin/plexi start",
+		"test": "./node_modules/plexi/bin/plexi start --dev --debug"
 	},
-	"main": "main.js",
 	"dependencies": {
 		"plexi": "*"
 	},
 	"plexi": {
 		"activator": "activator.js",
 		"dependencies": {
-			"c": "*"
+			"plexi.workbench": "*"
 		},
 		"links": {
 			"plexi.http": "/Volumes/repository/git/attrs/plexi.http",

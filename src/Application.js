@@ -166,20 +166,20 @@ Application.prototype = {
 		this.emit('loaded', this);
 	},
 	detect: function() {		
-		if( !fs.existsSync(this.PLUGINS_DIR) ) return;
+		if( fs.existsSync(this.PLUGINS_DIR) ) {
+			var files = fs.readdirSync(this.PLUGINS_DIR);
 	
-		var files = fs.readdirSync(this.PLUGINS_DIR);
-	
-		for(var i=0; i < files.length; i++) {
-			var dirname = files[i];
+			for(var i=0; i < files.length; i++) {
+				var dirname = files[i];
 			
-			if( dirname.startsWith('-') || !~dirname.indexOf('@') ) continue;
+				if( dirname.startsWith('-') || !~dirname.indexOf('@') ) continue;
 	
-			var dir = path.join(this.PLUGINS_DIR, dirname);
-			var stat = fs.statSync(dir);
-			if( stat.isDirectory() ) {
-				var plugin = new Plugin(this, dir);
-				this.plugins.add(plugin);
+				var dir = path.join(this.PLUGINS_DIR, dirname);
+				var stat = fs.statSync(dir);
+				if( stat.isDirectory() ) {
+					var plugin = new Plugin(this, dir);
+					this.plugins.add(plugin);
+				}
 			}
 		}
 		
