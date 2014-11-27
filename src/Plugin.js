@@ -209,15 +209,16 @@ Plugin.prototype = {
 		return path.join(this.home, f);
 	},
 	detect: function detect() {
-		var manifest = require(path.join(this.home, 'package.json'));
+		var packagefile = path.join(this.home, 'package.json');
+		var manifest = require(packagefile);
 		var pluginId = manifest.name;
 		var version = semver.clean(manifest.version);
 		var plexi = manifest.plexi || {};
 		
 		if( !pluginId || typeof(pluginId) !== 'string' )
-			throw new ApplicationError('missing_pluginId:package.json/name', manifest);
+			throw new ApplicationError('missing_pluginId:' + packagefile + '/name', manifest);
 		if( !version || !semver.valid(version) )
-			throw new ApplicationError('invalid_version:package.json/version', manifest);
+			throw new ApplicationError('invalid_version:' + packagefile + '/version', manifest);
 		
 		Object.defineProperty(this, 'identity', {
 			value: new PluginIdentity(pluginId, version),
@@ -253,16 +254,16 @@ Plugin.prototype = {
 			} else if( typeof(activator) === 'object' ) {
 				if( typeof(activator.start) !== 'function' ) {
 					activator = null;
-					console.error('activator.start must be a function', this.identity.toString());
+					console.error('[' + this.identity + '] activator.start must be a function');
 				}
 				
 				if( activator.stop && typeof(activator.stop) !== 'function' ) {
 					activator.stop = null;
-					console.error('activator.stop must be a function', this.identity.toString());
+					console.error('[' + this.identity + '] activator.stop must be a function');
 				}
 			} else {
 				activator = null;
-				console.error('activator not found. ignored', this.identity.toString());
+				console.error('[' + this.identity + '] activator not found. ignored');
 			}
 		}
 				
@@ -310,7 +311,7 @@ Plugin.prototype = {
 	},
 	start: function start() {
 		if( this.status === Plugin.STATUS_STARTED ) {
-			console.warn('cannot_start:already_started:' + this.identity.toString() + ':' + this.version);
+			console.warn('already_started:' + this.identity + ':' + this.version);
 			return;
 		}
 		
@@ -338,7 +339,7 @@ Plugin.prototype = {
 	},
 	stop: function stop() {
 		if( this.status !== Plugin.STATUS_STARTED ) {
-			console.warn('cannot_stop:not_started_yet:' + this.identity.toString() + ':' + this.status);
+			console.warn('not_started_yet:' + this.identity + ':' + this.status);
 			return;
 		}
 

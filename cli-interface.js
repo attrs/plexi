@@ -3,6 +3,18 @@ var Application = require('./src/Application.js');
 
 var CLInterface = function CLInterface() {};
 
+function stringify(o, t) {
+	if( typeof(o) === 'string' ) return o;
+	if( !o ) return '(' + o + ')';
+	if( typeof(o) === 'function' ) return '(function)';
+	
+	if( arguments.length === 1 || !t ) t = '\t';
+	return JSON.stringify(o, function(key, value) {
+		if (typeof(value) === 'function') return '(function)';
+		return value;
+	}, t);
+}
+
 CLInterface.prototype = {
 	application: function(app) {
 		this.application = app;
@@ -46,16 +58,14 @@ CLInterface.prototype = {
 					});
 					
 					var host = app.plugins.host();
-					var devmode = app.devmode ? true : false;
 
 					table.push(['home  ', app.HOME]);
-					table.push(['devmode  ', devmode]);
 					table.push(['preferences.file  ', app.PREFERENCES_FILE]);
 					table.push(['plugins.dir  ', app.PLUGINS_DIR]);
 					table.push(['workspace.dir  ', app.WORKSPACE_DIR]);
 					table.push(['host plugin  ', host && (host.identity.toString() + ' [' + host.home + ']')]);
-					if( devmode ) table.push(['links  ', JSON.stringify(app.links,'','\t')]);
-					table.push(['properties  ', JSON.stringify(app.properties,'','\t')]);
+					if( app.links ) table.push(['links  ', stringify(app.links,'','\t')]);
+					table.push(['properties  ', stringify(app.properties,'','\t')]);
 
 					console.log(table.toString());
 				} else {
@@ -68,7 +78,7 @@ CLInterface.prototype = {
 								, 'left': '' , 'left-mid': '' , 'mid': '' , 'mid-mid': ''
 								, 'right': '' , 'right-mid': '' , 'middle': ' ' },
 							 style: { compact : true, 'padding-left' : 1 }
-						});
+						});						
 						
 						table.push(['identity  ', (plugin.identity && plugin.identity.toString()) || '(null)']);
 						table.push(['home  ', plugin.home || '(null)']);
@@ -77,8 +87,11 @@ CLInterface.prototype = {
 						table.push(['activator  ', (plugin.activator ? true : false)]);
 						table.push(['status  ', plugin.status || '(null)']);
 						table.push(['workspace  ', (plugin.workspace && plugin.workspace.dir) || '(null)']);
-						table.push(['dependencies  ', JSON.stringify(plugin.dependencies, '', '\t')]);
-						table.push(['preference  ', JSON.stringify(plugin.preference, '', '\t')]);
+						table.push(['dependencies  ', stringify(plugin.dependencies, '', '\t')]);
+						table.push(['preference  ', stringify(plugin.preference, '', '\t')]);
+						table.push(['exports  ', stringify(plugin.exports)]);
+						
+						console.log('exports', plugin.exports);
 
 						console.log(table.toString());
 					} else {

@@ -7,6 +7,7 @@ process.title = 'plexi';
 var Application = require('../src/Application.js');
 var cli = require('../cli-interface.js');
 var argv = require('attrs.argv');
+var plexi = require('../');
 
 if( argv.install ) {
 	console.log('plexi installing...', argv);
@@ -19,10 +20,9 @@ if( argv.install ) {
 	var app = new Application(process.cwd(), argv);
 	app.updateAll();
 } else if( argv.start ) {
-	console.log('plexi starting...', argv);	
-
-	var app = new Application(process.cwd(), argv).start();
-	cli.application(app).start();
+	console.log('plexi starting...', argv);
+	
+	plexi.start(process.cwd(), argv);
 } else {
 	console.log('input command:install,update,start');
 }

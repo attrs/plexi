@@ -6,15 +6,16 @@ var ApplicationError = require('./src/ApplicationError.js');
 
 var cli = require('./cli-interface.js');
 
+var app;
 module.exports = {
 	cli: cli,
-	startup: function(home_dir, argv) {
-		var app = new Application(home_dir, argv);
-		cli.application(app);
+	start: function(home_dir, argv) {
+		app = new Application(home_dir, argv).start();
+		cli.application(app).start();
 		return app;
 	},
 	current: function() {
-		return Application.instance;
+		return app;
 	},
 	Application: Application,
 	Plugin: Plugin,

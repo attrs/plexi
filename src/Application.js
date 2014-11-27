@@ -51,10 +51,8 @@ var rmdirRecursive = function(path) {
 };
 
 var Application = function(homedir, argv) {
-	if( Application.instance ) throw new ApplicationError('already_initialized', Application.app);
 	if( !homedir ) throw new ApplicationError('missing home directory', homedir);
 	
-	if( argv && argv.dev ) this.devmode = true;
 	if( argv && argv.debug ) this.debug = true;
 	
 	this.ee = new EventEmitter();
@@ -79,8 +77,6 @@ var Application = function(homedir, argv) {
 	}
 	
 	this.load(homedir, argv);
-	
-	Application.instance = this;
 };
 
 Application.prototype = {
@@ -91,7 +87,27 @@ Application.prototype = {
 		var plexi = pkg.plexi || {};
 		var dependencies = plexi.dependencies || {};
 		
-		var preferences, env;
+		var preferences, env, links;
+		
+		if( !argv.ignorelinks ) {
+			var linksfile = path.join(home, '.plexilinks');
+			if( fs.existsSync(linksfile) && fs.statSync(linksfile).isFile() ) {
+				var links_text = fs.readFileSync(linksfile, {encoding:'utf8'});
+				if( links_text ) {
+					var links_array = links_text.toString().split('\r').join('').split('\t').join('').split('\n');
+					
+					if( links_array.length ) {
+						links = [];
+						for(var i=0; i < links_array.length; i++) {
+							var link = links_array[i];
+							if( link ) link = link.trim();
+							if( link ) links.push(link);
+						}
+						if( !links.length ) links = null;
+					}
+				}
+			}
+		}
 		
 		// read preference file
 		if( true ) {		
@@ -153,7 +169,7 @@ Application.prototype = {
 		properties['plugins.dir'] = this.PLUGINS_DIR;
 	
 		// setup instance attributes
-		this.links = plexi.links || {};
+		this.links = links;
 		this.properties = properties;
 		this.preferences = preferences.preferences || {};
 		this.workspaces = {};
@@ -183,19 +199,14 @@ Application.prototype = {
 			}
 		}
 		
-		// devmode 라면 links 를 활성화
-		if( this.devmode ) {
-			var links = this.links;
-			for(var pluginId in links) {
-				var pathes = links[pluginId];
-				if( pathes ) {
-					if( !Array.isArray(pathes) ) pathes = [pathes];
-					
-					for(var i=0; i < pathes.length; i++) {
-						var dir = pathes[i];
-						var plugin = new Plugin(this, dir);
-						this.plugins.add(plugin);
-					}
+		// links 가 있다면 활성화
+		var links = this.links;
+		if( links ) {
+			for(var i=0; i < links.length; i++) {
+				var link = links[i];
+				if( link ) {
+					var plugin = new Plugin(this, link);
+					this.plugins.add(plugin);
 				}
 			}
 		}

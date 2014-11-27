@@ -14,14 +14,8 @@
 	"plexi": {
 		"activator": "activator.js",
 		"dependencies": {
-			"plexi.workbench": "*"
-		},
-		"links": {
-			"plexi.http": "/Volumes/repository/git/attrs/plexi.http",
-			"plexi.auth": "/Volumes/repository/git/attrs/plexi.auth",
-			"ui.alien": "/Volumes/repository/git/attrs/ui-alien",
-			"plexi.workbench": "/Volumes/repository/git/attrs/plexi.workbench",
-			"plexi.monitor": "/Volumes/repository/git/attrs/plexi.monitor"
+			"plexi.workbench": "*",
+			"attrs.persist": "*"
 		}
 	}
 }
