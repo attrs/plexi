@@ -1,0 +1,18 @@
+{
+	"env": {},
+	"properties": {},
+	"preferences": {
+		"plexi.http": {
+			"port": 9090
+		},
+		"a": {
+			"key": "a"
+		},
+		"b": {
+			"key": "b"
+		},
+		"c": {
+			"key": "c"
+		}
+	}
+}
