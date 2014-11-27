@@ -2,7 +2,6 @@
 	"env": {
 		"plugin.dir": "plugins"
 	},
-	"properties": {},
 	"preferences": {
 		"plexi.http": {
 			"port": 9090

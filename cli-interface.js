@@ -63,6 +63,7 @@ CLInterface.prototype = {
 					table.push(['preferences.file  ', app.PREFERENCES_FILE]);
 					table.push(['plugins.dir  ', app.PLUGINS_DIR]);
 					table.push(['workspace.dir  ', app.WORKSPACE_DIR]);
+					table.push(['log.dir  ', app.LOG_DIR]);
 					table.push(['host plugin  ', host && (host.identity.toString() + ' [' + host.home + ']')]);
 					if( app.links ) table.push(['links  ', stringify(app.links,'','\t')]);
 					table.push(['properties  ', stringify(app.properties,'','\t')]);

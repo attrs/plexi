@@ -4,6 +4,7 @@ var semver = require('semver');
 var EventEmitter = require('events').EventEmitter;
 var util = require("util");
 var ApplicationError = require('./ApplicationError.js');
+var Logger = require('./Logger.js');
 
 // Plugin Context
 var PluginContext = function PluginContext(plugin) {
@@ -75,6 +76,14 @@ var PluginContext = function PluginContext(plugin) {
 		configurable: false,
 		get: function() {
 			return plugin.application.plugins;
+		}
+	});
+
+	Object.defineProperty(this, 'logger', {
+		enumerable: true,
+		configurable: false,
+		get: function() {
+			return plugin.logger;
 		}
 	});
 };
@@ -187,6 +196,8 @@ var Plugin = function Plugin(application, dir) {
 		}
 	});
 
+	this.detect();
+	
 	var ctx = new PluginContext(this);
 	Object.defineProperty(this, 'ctx', {
 		enumerable: false,
@@ -195,8 +206,14 @@ var Plugin = function Plugin(application, dir) {
 			return ctx;
 		}
 	});
-
-	this.detect();
+	
+	var logger = new Logger(path.join(application.LOG_DIR, this.identity.toString()));
+	Object.defineProperty(this, 'logger', {
+		enumerable: true,
+		configurable: false,
+		writable: false,
+		value: logger
+	});
 };
 
 Plugin.STATUS_DETECTED = 'detected';

@@ -130,6 +130,7 @@ Application.prototype = {
 		
 		this.PLUGINS_DIR = path.join(home, env['plugins.dir'] || 'plexi_modules');
 		this.WORKSPACE_DIR = path.join(home, env['workspace.dir'] || 'workspace');
+		this.LOG_DIR = path.join(home, env['log.dir'] || 'logs');
 		
 		//if( !fs.existsSync(this.PLUGINS_DIR) ) fs.mkdirSync(this.PLUGINS_DIR);
 		//if( !fs.existsSync(this.WORKSPACE_DIR) ) fs.mkdirSync(this.WORKSPACE_DIR);
@@ -167,6 +168,7 @@ Application.prototype = {
 		properties['preferences.file'] = this.PREFERENCES_FILE;
 		properties['workspace.dir'] = this.WORKSPACE_DIR;
 		properties['plugins.dir'] = this.PLUGINS_DIR;
+		properties['log.dir'] = this.LOG_DIR;
 	
 		// setup instance attributes
 		this.links = links;
