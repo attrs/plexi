@@ -1,6 +1,7 @@
 var path = require('path');
 var fs = require('fs');
 var npm = require("npm");
+var colors = require('colors');
 
 npm.on('log', function(message) {
 	console.log('log:' + message);
@@ -190,13 +191,15 @@ Application.prototype = {
 			for(var i=0; i < files.length; i++) {
 				var dirname = files[i];
 			
-				if( dirname.startsWith('-') || !~dirname.indexOf('@') ) continue;
+				if( dirname.startsWith('-') || dirname.startsWith('.') ) continue;
 	
 				var dir = path.join(this.PLUGINS_DIR, dirname);
-				var stat = fs.statSync(dir);
-				if( stat.isDirectory() ) {
-					var plugin = new Plugin(this, dir);
-					this.plugins.add(plugin);
+				if( fs.statSync(dir).isDirectory() ) {
+					var stat = fs.statSync(dir);
+					if( stat.isDirectory() ) {
+						var plugin = new Plugin(this, dir);
+						this.plugins.add(plugin);
+					}
 				}
 			}
 		}
@@ -206,9 +209,11 @@ Application.prototype = {
 		if( links ) {
 			for(var i=0; i < links.length; i++) {
 				var link = links[i];
-				if( link ) {
+				if( link && fs.existsSync(link) && fs.statSync(link).isDirectory() ) {
 					var plugin = new Plugin(this, link);
 					this.plugins.add(plugin);
+				} else {
+					console.warn(('[WARN] .plexilinks : "' + link + '" does not exists, ignored.').underline.bgBlack.yellow);
 				}
 			}
 		}

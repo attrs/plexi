@@ -41,7 +41,8 @@
 		"mkdirp": "*",
 		"attrs.argv": "*",
 		"npm": "^2.1.5",
-		"semver": "*"
+		"semver": "*",
+		"colors": "1.*"
 	},
 	"keywords": [
 		"plexi",
