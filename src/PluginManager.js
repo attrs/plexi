@@ -5,9 +5,9 @@ var ApplicationError = require('./ApplicationError.js');
 var PluginGroup = (function() {
 	"use strict"
 	
-	var PluginGroup = function PluginGroup(pluginId) {
-		Object.defineProperty(this, 'pluginId', {
-			value: pluginId,
+	var PluginGroup = function PluginGroup(name) {
+		Object.defineProperty(this, 'name', {
+			value: name,
 			enumerable: false,
 			configurable: false,
 			writable: false
@@ -61,19 +61,19 @@ var PluginGroup = (function() {
 	};
 	
 	fn.push = function(plugin) {
-		if( (plugin instanceof Plugin) && plugin.pluginId === this.pluginId ) {
+		if( (plugin instanceof Plugin) && plugin.name === this.name ) {
 			Array.prototype.push.call(this, plugin);
 
 			this.sort(function compare(a, b) {
 				return semver.compare(b.version, a.version);
 			});
 		} else {
-			throw new ApplicationError('invalid_plugin:' + plugin.pluginId, plugin);
+			throw new ApplicationError('invalid_plugin:' + plugin.name, plugin);
 		}
 	};
 	
 	fn.toString = function() {
-		return '[group:' + this.pluginId + ':' + this.length + ']';
+		return '[group:' + this.name + ':' + this.length + ']';
 	};
 	
 	return PluginGroup;
@@ -88,7 +88,7 @@ var PluginManager = (function() {
 	}
 	
 	function parseIdentifier(identifier) {
-		
+		var name
 	}
 
 	PluginManager.prototype = {
@@ -103,26 +103,26 @@ var PluginManager = (function() {
 		},
 		add: function(plugin) {
 			if( !(plugin instanceof Plugin) ) throw new ApplicationError('illegal_arguments:plugin', plugin);
-			var group = this.groups[plugin.pluginId];
-			if( !group ) group = this.groups[plugin.pluginId] = new PluginGroup(plugin.pluginId);
-			group.add(plugin);
+			var group = this.groups[plugin.name];
+			if( !group ) group = this.groups[plugin.name] = new PluginGroup(plugin.name);
+			group.push(plugin);
 			this.app.emit('bound', plugin);
 			return this;
 		},
 		get: function(identifier) {
 			var parsed = parseIdentifier(identifier);
-			if( !parsed ) return console.warn('not found plugin', identifier);
-			var group = this.groups[parsed.pluginId];
-			if( group ) {
-				return group.satisfy(parsed.version || '*');
-			}
-			return null;
+			if( !parsed ) return console.error('invalid identifier', identifier);
+						
+			var group = this.groups[parsed.name];
+			if( !group ) return console.error('plugin not found', identifier);
+			
+			return group.satisfy(parsed.version);
 		},
 		exists: function(identifier) {
 			return this.get(identifier) ? true : false;
 		},
-		group: function(pluginId) {
-			return this.groups[pluginId];
+		group: function(name) {
+			return this.groups[name];
 		},
 		ids: function() {
 			var result = [];
@@ -147,9 +147,8 @@ var PluginManager = (function() {
 			return result;
 		},	
 		// control
-		start: function(pluginId, version) {
-			if( !arguments.length || !pluginId ) return console.error('illegal_arguments:pluginId');
-			if( !version ) version = '*';
+		start: function(identifier) {
+			var plugins = this.get(identifier);
 		
 			var group = this.groups[pluginId];
 			var plugin = group.get(version);
@@ -157,7 +156,7 @@ var PluginManager = (function() {
 			plugin.start();
 			return this;
 		},
-		stop: function(pluginId, version) {
+		stop: function(identifier) {
 			if( !arguments.length || !pluginId ) return console.error('illegal_arguments:pluginId');
 			if( !version ) version = '*';
 		

@@ -29,9 +29,7 @@ console.log('* options', options);
 
 if( cmd === 'install' ) {
 	console.log('* plexi installing...', arg[0] || '(all dependencies)');
-	
-	return;
-	
+		
 	var identity = arg[0];
 	
 	var app = new Application(process.cwd(), options);

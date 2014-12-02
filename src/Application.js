@@ -187,7 +187,26 @@ Application.prototype = {
 		this.detect();
 		this.emit('loaded', this);
 	},
-	detect: function() {		
+	detect: function() {
+		// links 가 있다면 활성화
+		var links = this.links;
+		if( links ) {
+			for(var i=0; i < links.length; i++) {
+				var link = links[i];
+				if( link && fs.existsSync(link) && fs.statSync(link).isDirectory() ) {
+					var descriptor = new PluginDescriptor(this, link);
+					if( !this.plugins.get(descriptor.id) ) {
+						console.warn('* [' + descriptor.id + '] already exists version', dir);
+					} else {
+						this.plugins.add(descriptor.instantiate());
+					}
+				} else {
+					console.warn(('[WARN] path in .plexilinks : "' + link + '" does not exists, ignored.').underline.bgBlack.yellow);
+				}
+			}
+		}
+		
+		// plugins.dir 에서 활성화
 		if( fs.existsSync(this.PLUGINS_DIR) ) {
 			var files = fs.readdirSync(this.PLUGINS_DIR);
 	
@@ -198,25 +217,12 @@ Application.prototype = {
 	
 				var dir = path.join(this.PLUGINS_DIR, dirname);
 				if( fs.statSync(dir).isDirectory() ) {
-					var stat = fs.statSync(dir);
-					if( stat.isDirectory() ) {
-						var plugin = new Plugin(this, dir);
-						this.plugins.add(plugin);
+					var descriptor = new PluginDescriptor(this, dir);
+					if( !this.plugins.get(descriptor.id) ) {
+						console.warn('* [' + descriptor.id + '] already exists version', dir);
+					} else {
+						this.plugins.add(descriptor.instantiate());
 					}
-				}
-			}
-		}
-		
-		// links 가 있다면 활성화
-		var links = this.links;
-		if( links ) {
-			for(var i=0; i < links.length; i++) {
-				var link = links[i];
-				if( link && fs.existsSync(link) && fs.statSync(link).isDirectory() ) {
-					var plugin = new Plugin(this, link);
-					this.plugins.add(plugin);
-				} else {
-					console.warn(('[WARN] path in .plexilinks : "' + link + '" does not exists, ignored.').underline.bgBlack.yellow);
 				}
 			}
 		}
@@ -317,7 +323,7 @@ Application.prototype = {
 
 		return ws;
 	},
-	preference: function(pluginId, version) {
+	preference: function(identifier) {
 		var prefs = this.preferences;
 		if( prefs ) {			
 			var pref = prefs[pluginId];
