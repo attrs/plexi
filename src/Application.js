@@ -62,17 +62,17 @@ var Application = function(homedir, argv) {
 		this.on('loaded', function() {
 			console.log('* plexi application loaded');
 		}).on('detected', function(plugin) {
-			console.log('* [' + plugin.identity + '] plugin detected!');
+			console.log('* [' + plugin.identifier + '] plugin detected!');
 		}).on('bound', function(plugin) {
-			console.log('* [' + plugin.identity + '] plugin bound!');
+			console.log('* [' + plugin.identifier + '] plugin bound!');
 		}).on('started', function(plugin) {
-			console.log('* [' + plugin.identity + '] plugin started!');
+			console.log('* [' + plugin.identifier + '] plugin started!');
 		}).on('stopped', function(plugin) {
-			console.log('* [' + plugin.identity + '] plugin stopped!');
+			console.log('* [' + plugin.identifier + '] plugin stopped!');
 		}).on('detect-error', function(plugin) {
-			console.log('* [' + plugin.identity + '] plugin error!');
+			console.log('* [' + plugin.identifier + '] plugin error!');
 		}).on('require', function(pluginId, plugin, caller, exports) {
-			console.log('* [' + caller.identity + '] plugin require "' + pluginId + '" [' + plugin.identity + ']');
+			console.log('* [' + caller.identifier + '] plugin require "' + pluginId + '" [' + plugin.identifier + ']');
 			console.log('\texports: ', exports);
 		});
 	}
@@ -82,11 +82,13 @@ var Application = function(homedir, argv) {
 
 Application.prototype = {
 	load: function(homedir, argv) {
-		var home = this.HOME = homedir;
+		var home = this.HOME = this.home = homedir;
 		
 		var pkg = require(path.join(home, 'package.json'));
+		var plexipkg = require('../package.json');
 		var plexi = pkg.plexi || {};
 		var dependencies = plexi.dependencies || {};
+		var version = plexipkg.version;
 		
 		var preferences, env, links;
 		
@@ -153,6 +155,7 @@ Application.prototype = {
 		}
 		
 		properties['home'] = this.HOME;
+		properties['plexi.version'] = version;
 		properties['preferences.file'] = this.PREFERENCES_FILE;
 		properties['workspace.dir'] = this.WORKSPACE_DIR;
 		properties['plugins.dir'] = this.PLUGINS_DIR;
@@ -213,7 +216,7 @@ Application.prototype = {
 					var plugin = new Plugin(this, link);
 					this.plugins.add(plugin);
 				} else {
-					console.warn(('[WARN] .plexilinks : "' + link + '" does not exists, ignored.').underline.bgBlack.yellow);
+					console.warn(('[WARN] path in .plexilinks : "' + link + '" does not exists, ignored.').underline.bgBlack.yellow);
 				}
 			}
 		}
@@ -226,6 +229,76 @@ Application.prototype = {
 	},
 	plugins: function() {
 		return this.plugins;
+	},
+	link: function(link) {
+		if( link && fs.existsSync(link) && fs.statSync(link).isDirectory() ) {
+			var plugin = new Plugin(this, link);
+			this.plugins.add(plugin);
+		} else {
+			console.warn(('[WARN] .plexilinks : "' + link + '" does not exists, ignored.').underline.bgBlack.yellow);
+		}
+	},
+	installAll: function(fn) {
+		if( fn && typeof(fn) !== 'function' ) throw new ApplicationError('illegal_arguments', fn);
+		
+		var debug = this.debug;
+		if( !fn ) fn = function(err, results) {
+			if( debug ) return console.error('* plugin install error'.red, err);
+			console.log('* plugin installed'.green, results);
+		}; 
+			
+		var pkg = require(path.join(this.home, 'package.json'));
+		var plexi = pkg.plexi || {};
+		var dependencies = plexi.dependencies || {};
+		var async = require('async');
+		
+		var tasks = [];
+		var plugins = this.plugins;
+		for(var pluginId in dependencies) {
+			var version = dependencies[pluginId];
+			
+			tasks.push((function(pluginId, version) {
+				return function(callback) {
+					plugins.install(pluginId, version, function(err, result) {
+						callback(err, result);
+					});
+				};
+			})(pluginId, version));
+		}
+		
+		async.series(tasks, function(err, results){
+			fn(err, results);
+		});
+		return this;
+	},
+	uninstallAll: function(fn) {
+		if( fn && typeof(fn) !== 'function' ) throw new ApplicationError('illegal_arguments', fn);
+		
+		var debug = this.debug;
+		if( !fn ) fn = function(err, results) {
+			if( debug ) return console.error('* plugin uninstall error'.red, err);
+			console.log('* plugin uninstalled'.green, results);
+		}; 
+			
+		var pkg = require(path.join(this.home, 'package.json'));
+		var plexi = pkg.plexi || {};
+		var dependencies = plexi.dependencies || {};
+		var async = require('async');
+		
+		var tasks = [];
+		for(var pluginId in dependencies) {
+			var version = dependencies[pluginId] || '*';
+			tasks.push(function(callback) {
+				this.plugins.uninstall(pluginId, version, function(err, result) {
+					callback(err, result);				
+				});
+			});
+		}
+		
+		async.series(tasks, function(err, results){
+			fn(err, results);
+		});
+		return this;
 	},
 	workspace: function(pluginId) {
 		if( !pluginId ) throw new ApplicationError('missing:pluginId');

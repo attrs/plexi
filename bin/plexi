@@ -6,23 +6,72 @@ process.title = 'plexi';
 
 var Application = require('../src/Application.js');
 var cli = require('../cli-interface.js');
-var argv = require('attrs.argv');
+var argv = process.argv;
 var plexi = require('../');
 
-if( argv.install ) {
-	console.log('plexi installing...', argv);
+var cmd = argv[2];
+var arg = [];
+var options = {};
+
+if( true ) {
+	var args = argv.splice(3) || [];
+	for(var i=0; i < args.length; i++) {
+		var s = args[i];
+		if( s && !s.indexOf('--') ) options[s.substring(2)] = true;
+		else if( s && !s.indexOf('-') ) options[s.substring(1)] = true;
+		else arg.push(s);
+	}
+}
+
+console.log('* cmd', cmd);
+console.log('* arg', arg);
+console.log('* options', options);
+
+if( cmd === 'install' ) {
+	console.log('* plexi installing...', arg[0] || '(all dependencies)');
 	
-	var app = new Application(process.cwd(), argv);
-	app.installAll();
-} else if( argv.update ) {
-	console.log('plexi installing...', argv);
+	return;
 	
-	var app = new Application(process.cwd(), argv);
+	var identity = arg[0];
+	
+	var app = new Application(process.cwd(), options);
+	var fn = function(err, results) {
+		if( err ) return console.error('Plugin install error', err);
+		console.log('Plugin installed successfully!', results);
+	};
+	if( identity ) {
+		app.plugins.install(identity, fn);
+	} else {
+		app.installAll(fn);
+	}
+} else if( cmd === 'update' ) {
+	console.log('* plexi installing...', arg[0] || '(all dependencies)');
+	
+	var identity = arg[0];
+	
+	var app = new Application(process.cwd(), options);
+	var fn = function(err, results) {
+		if( err ) return console.error('Plugin update error', err);
+		console.log('Plugin updated successfully!', results);
+	};
+	if( identity ) {
+		app.plugins.update(identity, fn);
+	} else {
+		app.updateAll(fn);	
+	}
+} else if( cmd === 'link' ) {
+	console.log('* plexi linking...', options);
+	
+	var app = new Application(process.cwd(), options);
 	app.updateAll();
-} else if( argv.start ) {
-	console.log('plexi starting...', argv);
+} else if( cmd === 'start' ) {
+	console.log('* plexi starting...', options);
 	
-	plexi.start(process.cwd(), argv);
+	plexi.start(process.cwd(), options);
+} else if( cmd === 'dev' ) {
+	console.log('* plexi starting(dev)...', options);
+	
+	plexi.dev(process.cwd(), options);
 } else {
-	console.log('input command:install,update,start');
+	console.log('input command:install,update,link,start,dev');
 }

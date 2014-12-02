@@ -1,11 +1,13 @@
 ## plexi
-	plugin module system for nodejs
+	plugin system for nodejs
 
 ### Installation
 
-	npm install attrs.plugins
+	npm install plexi -g
 
 ### Usage
-	var plexi = require('plexi');
+	$ plexi install
+	
+	$ plexi start
 	
 	... usage & examples will be updated soon ...

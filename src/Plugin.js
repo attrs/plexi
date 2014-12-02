@@ -23,11 +23,11 @@ var PluginContext = function PluginContext(plugin) {
 		}
 	});
 	
-	Object.defineProperty(this, 'identity', {
+	Object.defineProperty(this, 'identifier', {
 		enumerable: true,
 		configurable: false,
 		get: function() {
-			return plugin.identity;
+			return plugin.identifier;
 		}
 	});
 	
@@ -106,12 +106,12 @@ PluginContext.prototype = {
 		if( plugin ) {
 			//console.log('\t- require -----------------------------------');
 			if( ~[Plugin.STATUS_DETECTED, Plugin.STATUS_STOPPED].indexOf(plugin.status) ) {
-				//console.log('\t- plugin', plugin.identity.toString());
-				//console.log('\t- caller', current.identity.toString());
+				//console.log('\t- plugin', plugin.identifier.toString());
+				//console.log('\t- caller', current.identifier.toString());
 				
 				plugin.start();
 			} else if( plugin.status === Plugin.STATUS_ERROR ) {
-				throw new ApplicationError('plugin status is error', plugin.identity.toString());
+				throw new ApplicationError('plugin status is error', plugin.identifier.toString());
 			}
 
 			var exports = plugin.exports || {};			
@@ -131,17 +131,17 @@ PluginContext.prototype = {
 			}
 
 			this.application.emit('require', pluginId, plugin, current, result);			
-			//console.log('\t- [' + plugin.identity.toString() + '] exports', plugin.exports, result);
+			//console.log('\t- [' + plugin.identifier.toString() + '] exports', plugin.exports, result);
 
 			return result;
 		} else {
-			throw new ApplicationError('[' + current.identity + ']: dependency plugin [' + pluginId + '] not found');
+			throw new ApplicationError('[' + current.identifier + ']: dependency plugin [' + pluginId + '] not found');
 		}
 	}
 };
 
 // Plugin Identity
-var PluginIdentity = function PluginIdentity(pluginId, version) {	
+var PluginIdentifier = function PluginIdentifier(pluginId, version) {	
 	if( !pluginId || typeof(pluginId) !== 'string' ) throw new ApplicationError('missing:pluginId:' + name);
 	if( !version || typeof(version) !== 'string' ) throw new ApplicationError('missing:version:' + name);
 
@@ -160,7 +160,7 @@ var PluginIdentity = function PluginIdentity(pluginId, version) {
 	});
 };
 
-PluginIdentity.prototype = {
+PluginIdentifier.prototype = {
 	is: function(match) {
 		return semver.satisfies(this.version, match);
 	},
@@ -207,7 +207,7 @@ var Plugin = function Plugin(application, dir) {
 		}
 	});
 	
-	var logger = new Logger(path.join(application.LOG_DIR, this.identity.toString()));
+	var logger = new Logger(path.join(application.LOG_DIR, this.identifier.toString()));
 	Object.defineProperty(this, 'logger', {
 		enumerable: true,
 		configurable: false,
@@ -237,8 +237,8 @@ Plugin.prototype = {
 		if( !version || !semver.valid(version) )
 			throw new ApplicationError('invalid_version:' + packagefile + '/version', manifest);
 		
-		Object.defineProperty(this, 'identity', {
-			value: new PluginIdentity(pluginId, version),
+		Object.defineProperty(this, 'identifier', {
+			value: new PluginIdentifier(pluginId, version),
 			enumerable: false,
 			configurable: false,
 			writable: false
@@ -271,16 +271,16 @@ Plugin.prototype = {
 			} else if( typeof(activator) === 'object' ) {
 				if( typeof(activator.start) !== 'function' ) {
 					activator = null;
-					console.error('[' + this.identity + '] activator.start must be a function');
+					console.error('[' + this.identifier + '] activator.start must be a function');
 				}
 				
 				if( activator.stop && typeof(activator.stop) !== 'function' ) {
 					activator.stop = null;
-					console.error('[' + this.identity + '] activator.stop must be a function');
+					console.error('[' + this.identifier + '] activator.stop must be a function');
 				}
 			} else {
 				activator = null;
-				console.error('[' + this.identity + '] activator not found. ignored');
+				console.error('[' + this.identifier + '] activator not found. ignored');
 			}
 		}
 				
@@ -323,12 +323,22 @@ Plugin.prototype = {
 		});
 		
 		this.status = Plugin.STATUS_DETECTED;
+		this.ready = true;
 		
 		this.application.emit('detected', this);
 	},
+	isReady: function() {
+		return this.ready ? true : false;	
+	},
+	isStarted: function() {
+		return (this.status === Plugin.STATUS_STARTED);		
+	},
+	isStopped: function() {
+		return (this.status === Plugin.STATUS_STOPPED);
+	},
 	start: function start() {
 		if( this.status === Plugin.STATUS_STARTED ) {
-			console.warn('already_started:' + this.identity + ':' + this.version);
+			console.warn('already_started:' + this.identifier + ':' + this.version);
 			return;
 		}
 		
@@ -351,13 +361,11 @@ Plugin.prototype = {
 		
 		this.status = Plugin.STATUS_STARTED;
 		this.application.emit('started', this);
-
 		return result;
 	},
 	stop: function stop() {
 		if( this.status !== Plugin.STATUS_STARTED ) {
-			console.warn('not_started_yet:' + this.identity + ':' + this.status);
-			return;
+			return true;
 		}
 
 		var activator = this.activator;
@@ -366,10 +374,9 @@ Plugin.prototype = {
 			result = activator.stop.apply(this, [this.ctx]);
 		}
 		
-		this.status = Plugin.STATUS_STOPPED;		
+		this.status = Plugin.STATUS_STOPPED;
 		this.application.emit('stopped', this);
-
-		return result;
+		return true;
 	}
 };
 

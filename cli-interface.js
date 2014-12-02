@@ -58,7 +58,18 @@ CLInterface.prototype = {
 					});
 					
 					var host = app.plugins.host();
-
+					
+					var os = require('os');
+					
+					table.push(['os.type  ', os.type()]);
+					table.push(['os.platform  ', os.platform()]);
+					table.push(['os.arch  ', os.arch()]);
+					table.push(['os.release  ', os.release()]);
+					table.push(['free memory  ', Math.floor(os.freemem() / 1024 / 1024) + 'MB / ' + Math.floor(os.totalmem() / 1024 / 1024) + 'MB']);
+					table.push(['cpus  ', os.cpus().length]);
+					table.push(['hostname  ', os.hostname()]);
+					table.push(['nodejs  ', process.version]);
+					table.push(['plexi.version  ', app.properties['plexi.version']]);
 					table.push(['home  ', app.HOME]);
 					table.push(['preferences.file  ', app.PREFERENCES_FILE]);
 					table.push(['plugins.dir  ', app.PLUGINS_DIR]);

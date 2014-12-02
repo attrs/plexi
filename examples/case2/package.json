@@ -3,19 +3,20 @@
 	"version": "0.0.1",
 	"private": true,
 	"scripts": {
-		"install": "./node_modules/plexi/bin/plexi install",
-		"update": "./node_modules/plexi/bin/plexi update",
-		"start": "./node_modules/plexi/bin/plexi start",
-		"test": "./node_modules/plexi/bin/plexi start --dev --debug"
+		"install": "node ./node_modules/plexi/bin/plexi install",
+		"update": "node ./node_modules/plexi/bin/plexi update",
+		"start": "node ./node_modules/plexi/bin/plexi start",
+		"test": "node ./node_modules/plexi/bin/plexi start --dev --debug"
 	},
 	"dependencies": {
 		"plexi": "*"
 	},
 	"plexi": {
-		"activator": "activator.js",
 		"dependencies": {
 			"plexi.workbench": "*",
-			"attrs.persist": "*"
+			"attrs.persist": "*",
+			"a": "file:../case1/plugins/a",
+			"attrs.argv": "git+https://github.com/attrs/attrs.argv.git"
 		}
 	}
 }
