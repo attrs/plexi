@@ -5,7 +5,7 @@
 process.title = 'plexi';
 
 var Application = require('../src/Application.js');
-var cli = require('../cli-interface.js');
+var cli = require('../src/cli.js');
 var argv = process.argv;
 var plexi = require('../');
 

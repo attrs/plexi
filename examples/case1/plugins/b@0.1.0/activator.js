@@ -1,7 +1,7 @@
 module.exports = {
 	start: function(ctx) {
-		console.log(this.identity + ' starting...');
+		console.log(ctx.id + ' starting...');
 		
-		return {b:this.identity.version};
+		return {b:ctx.version};
 	}
 }

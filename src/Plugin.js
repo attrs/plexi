@@ -5,143 +5,9 @@ var EventEmitter = require('events').EventEmitter;
 var util = require("util");
 var ApplicationError = require('./ApplicationError.js');
 var Logger = require('./Logger.js');
+var Workspace = require('./Workspace.js');
 
-// Plugin Context
-var PluginContext = function PluginContext(plugin) {
-	Object.defineProperty(this, 'plugin', {
-		value: plugin,
-		enumerable: true,
-		configurable: false,
-		writable: false
-	});
-	
-	Object.defineProperty(this, 'application', {
-		enumerable: true,
-		configurable: false,
-		get: function() {
-			return plugin.application;
-		}
-	});
-	
-	Object.defineProperty(this, 'identifier', {
-		enumerable: true,
-		configurable: false,
-		get: function() {
-			return plugin.identifier;
-		}
-	});
-	
-	Object.defineProperty(this, 'preference', {
-		enumerable: true,
-		configurable: false,
-		get: function() {
-			return plugin.preference;
-		}
-	});
-
-	Object.defineProperty(this, 'pluginId', {
-		enumerable: true,
-		configurable: false,
-		get: function() {
-			return plugin.pluginId;
-		}
-	});
-
-	Object.defineProperty(this, 'version', {
-		enumerable: true,
-		configurable: false,
-		get: function() {
-			return plugin.version;
-		}
-	});
-
-	Object.defineProperty(this, 'home', {
-		enumerable: true,
-		configurable: false,
-		get: function() {
-			return plugin.home;
-		}
-	});
-
-	Object.defineProperty(this, 'workspace', {
-		enumerable: true,
-		configurable: false,
-		get: function() {
-			return plugin.workspace;
-		}
-	});
-
-	Object.defineProperty(this, 'plugins', {
-		enumerable: true,
-		configurable: false,
-		get: function() {
-			return plugin.application.plugins;
-		}
-	});
-
-	Object.defineProperty(this, 'logger', {
-		enumerable: true,
-		configurable: false,
-		get: function() {
-			return plugin.logger;
-		}
-	});
-};
-
-PluginContext.prototype = {
-	on: function(event, fn) {
-		this.plugin.application.on(event, fn);
-	},
-	off: function(event, fn) {
-		this.plugin.application.off(event, fn);
-	},
-	require: function(pluginId) {
-		var current = this.plugin;
-		
-		var version = current.dependencies[pluginId];
-		if( !version ) throw new ApplicationError('not found dependency:' + pluginId);
-		if( !semver.valid(version) ) version = '*';
-		var plugin = this.plugin.application.plugins.get(pluginId, version);
-		
-		if( plugin ) {
-			//console.log('\t- require -----------------------------------');
-			if( ~[Plugin.STATUS_DETECTED, Plugin.STATUS_STOPPED].indexOf(plugin.status) ) {
-				//console.log('\t- plugin', plugin.identifier.toString());
-				//console.log('\t- caller', current.identifier.toString());
-				
-				plugin.start();
-			} else if( plugin.status === Plugin.STATUS_ERROR ) {
-				throw new ApplicationError('plugin status is error', plugin.identifier.toString());
-			}
-
-			var exports = plugin.exports || {};			
-			var result = {};
-			
-			for(var key in exports) {
-				var o = exports[key];
-				if( typeof(o) === 'function' ) {
-					result[key] = (function(o) {
-						return function() {
-							return o.apply(current, arguments);
-						}
-					})(o);
-				} else {
-					result[key] = o;
-				}
-			}
-
-			this.application.emit('require', pluginId, plugin, current, result);			
-			//console.log('\t- [' + plugin.identifier.toString() + '] exports', plugin.exports, result);
-
-			return result;
-		} else {
-			throw new ApplicationError('[' + current.identifier + ']: dependency plugin [' + pluginId + '] not found');
-		}
-	}
-};
-
-
-
+// define util functions
 function readonly(o, name, value, enumerable) {
 	Object.defineProperty(o, name, {
 		value: value,
@@ -160,6 +26,79 @@ function getset(o, name, gettersetter, enumerable) {
 	});
 }
 
+
+// Plugin Context
+var PluginContext = function PluginContext(plugin) {
+	if( !(plugin instanceof Plugin) ) throw new ApplicationError('illegal_arguments:plugin', plugin);
+	
+	readonly(this, 'plugin', plugin);
+	
+	readonly(this, 'descriptor', plugin.descriptor);
+	readonly(this, 'dir', plugin.dir);
+	readonly(this, 'id', plugin.id);
+	readonly(this, 'name', plugin.name);
+	readonly(this, 'logger', plugin.logger);
+	readonly(this, 'version', plugin.version);
+	readonly(this, 'manifest', plugin.manifest);
+	readonly(this, 'application', plugin.application);
+	readonly(this, 'activator', plugin.activator);
+	readonly(this, 'dependencies', plugin.dependencies);
+	readonly(this, 'workspace', plugin.workspace);
+	readonly(this, 'exports', plugin.exports);
+	readonly(this, 'status', plugin.status);
+	readonly(this, 'preference', plugin.preference);
+};
+
+PluginContext.prototype = {
+	on: function(event, fn) {
+		this.plugin.application.on(event, fn);
+	},
+	off: function(event, fn) {
+		this.plugin.application.off(event, fn);
+	},
+	require: function(name) {
+		var current = this.plugin;
+		
+		var version = current.dependencies[name];
+		if( !version ) throw new ApplicationError('not found dependency:' + name);
+		if( !semver.valid(version) ) version = '*';
+		var plugin = this.application.plugins.satisfy(name, version);
+				
+		if( plugin ) {
+			//console.log('\t- require -----------------------------------');
+			if( !plugin.isStarted() ) {
+				//console.log('\t- plugin', plugin.id);
+				//console.log('\t- caller', current.id);
+				
+				plugin.start();
+			}
+
+			var exports = plugin.exports || {};			
+			var result = {};
+			
+			for(var key in exports) {
+				var o = exports[key];
+				if( typeof(o) === 'function' ) {
+					result[key] = (function(o) {
+						return function() {
+							return o.apply(current, arguments);
+						}
+					})(o);
+				} else {
+					result[key] = o;
+				}
+			}
+
+			this.application.emit('require', name, plugin, current, result);			
+			//console.log('\t- [' + plugin.id + '] exports', plugin.exports, result);
+
+			return result;
+		} else {
+			throw new ApplicationError('[' + current.id + ']: dependency plugin [' + name + '] not found');
+		}
+	}
+};
+
 // class Plugin
 var Plugin = (function() {
 	"use strict"
@@ -167,28 +106,22 @@ var Plugin = (function() {
 	function Plugin(descriptor) {
 		if( !(descriptor instanceof PluginDescriptor) ) throw new ApplicationError('illegal_argument:PluginDescriptor', descriptor);
 		
+		var app = descriptor.application;
+		
+		readonly(this, 'application', descriptor.application);
 		readonly(this, 'descriptor', descriptor);
 		readonly(this, 'dir', descriptor.dir);
 		readonly(this, 'id', descriptor.id);
 		readonly(this, 'name', descriptor.name);
 		readonly(this, 'version', descriptor.version);
 		readonly(this, 'manifest', descriptor.manifest);
-		readonly(this, 'application', descriptor.application);
 		readonly(this, 'activator', descriptor.activator);
 		readonly(this, 'dependencies', descriptor.dependencies);
-		
-		var preference = application.preference(descriptor.id) || {};
-		var ctx = new PluginContext(this);
-		var logger = new Logger(path.join(application.LOG_DIR, this.id.toString()));
-				
-		readonly(this, 'preference', preference);
-		readonly(this, 'ctx', ctx);
-		
-		getset(this, 'workspace', {
-			get: function() {
-				return application.workspace(this);
-			}
-		});
+		readonly(this, 'preference', app.preference(this.id) || {});
+		readonly(this, 'logger', new Logger(path.join(app.LOG_DIR, this.id.toString())));
+		readonly(this, 'workspace', new Workspace(this));
+			
+		readonly(this, 'ctx', new PluginContext(this));		
 		
 		var exports = {};
 		getset(this, 'exports', {
@@ -217,12 +150,12 @@ var Plugin = (function() {
 			} else if( typeof(activatorjs) === 'object' ) {
 				starter = typeof(activatorjs.start) === 'function' ? (function(scope) {
 					return function(ctx) {
-						scope.start(ctx);
+						return scope.start(ctx);
 					};
 				})(activatorjs) : starter;
 				stopper = typeof(activatorjs.stop) === 'function' ? (function(scope) {
 					return function(ctx) {
-						scope.stop(ctx);
+						return scope.stop(ctx);
 					};
 				})(activatorjs) : stopper;
 			}
@@ -245,13 +178,13 @@ var Plugin = (function() {
 		
 			var dependencies = this.dependencies;
 			for(var name in dependencies) {
-				if( name === self.name ) continue;
-				ctx.require(name);
+				if( name === this.name ) continue;
+				this.ctx.require(name);
 			}
 		
-			this.exports = null;
+			exports = null;
 			var result = this.starter(this.ctx);
-			if( result ) this.exports = result;
+			if( result !== null && result !== undefined ) exports = result;
 		
 			status = Plugin.STATUS_STARTED;
 			this.application.emit('started', this);
@@ -272,8 +205,6 @@ var Plugin = (function() {
 			return false;
 		}, false);
 			
-		
-	
 		this.application.emit('detected', this);
 	};
 
@@ -299,21 +230,56 @@ var Plugin = (function() {
 var PluginIdentifier = (function() {
 	"use strict"
 	
-	function PluginIdentifier(name, version) {	
+	function PluginIdentifier(name, version) {
 		if( !name || typeof(name) !== 'string' ) throw new ApplicationError('illegal:name:' + name);
-		if( !version || typeof(version) !== 'string' ) throw new ApplicationError('illegal:version:' + version);
+		
+		version = version ? (semver.clean(version) || version) : version;
 		
 		readonly(this, 'name', name);
 		readonly(this, 'version', version);
+		
+		if( version ) {
+			var v = semver.parse(version);
+			if( v ) {
+				readonly(this, 'semver', v);
+				readonly(this, 'major', v.major);
+				readonly(this, 'minor', v.minor);
+				readonly(this, 'patch', v.patch);
+			}
+		}
 	};
 
 	PluginIdentifier.prototype = {
-		is: function(match) {
-			return semver.satisfies(this.version, match);
+		satisfies: function(v) {
+			if( !this.version ) return false;
+			return semver.satisfies(this.version, v);
+		},
+		is: function(v) {
+			v = semver.clean(v) || v;
+			return this.version === v;
 		},
 		toString: function() {
+			if( !this.version ) return this.name;
 			return this.name + '@' + this.version;
 		}
+	};
+	
+	PluginIdentifier.parse = function(str) {
+		if( str instanceof Plugin ) return str.id;
+		if( str instanceof PluginIdentifier ) return str;
+		
+		var name, version, pos;
+		
+		if( ~(pos = str.indexOf('@')) ) {
+			name = str.substring(0, pos);
+			version = str.substring(pos + 1);
+		} else {
+			name = str;
+		}
+		
+		if( ~str.indexOf('/') ) throw new ApplicationError('invalid_identifier_string:' + str);
+					
+		return new PluginIdentifier(name, version);
 	};
 	
 	return PluginIdentifier;
@@ -339,7 +305,8 @@ var PluginDescriptor = (function() {
 			throw new ApplicationError('missing_name:' + packagefile + '/name', manifest);
 		if( !version || !semver.valid(version) )
 			throw new ApplicationError('invalid_version:' + packagefile + '/version', manifest);
-		
+
+		readonly(this, 'application', application);
 		readonly(this, 'id', id);
 		readonly(this, 'dir', dir);
 		readonly(this, 'name', name);
@@ -358,4 +325,9 @@ var PluginDescriptor = (function() {
 })();
 
 
-module.exports = PluginDescriptor;
+module.exports = {
+	PluginDescriptor: PluginDescriptor,
+	Plugin: Plugin,
+	PluginIdentifier: PluginIdentifier,
+	PluginContext: PluginContext
+};

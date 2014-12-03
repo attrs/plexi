@@ -1,5 +1,7 @@
 var semver = require('semver');
-var Plugin = require('./Plugin.js');
+var Plugin = require('./Plugin.js').Plugin;
+var PluginDescriptor = require('./Plugin.js').PluginDescriptor;
+var PluginIdentifier = require('./Plugin.js').PluginIdentifier;
 var ApplicationError = require('./ApplicationError.js');
 
 var PluginGroup = (function() {
@@ -17,14 +19,13 @@ var PluginGroup = (function() {
 	var fn = PluginGroup.prototype = [];
 
 	fn.get = function(match) {
-		if( match === '*' || match === 'latest' ) return this.latest();
-		if( !match ) return null;
+		if( !match || typeof(match) !== 'string' ) return null;
+		
+		match = semver.clean(match) || match;
 
 		for(var i=0; i < this.length; i++) {
-			var plugin = this[i];
-			var version = semver.clean(plugin.version) || plugin.version;
-		
-			if( version === match || version === semver.clean(match) ) return plugin;
+			var plugin = this[i];		
+			if( plugin.version === match ) return plugin;
 		}
 
 		return null;
@@ -86,10 +87,6 @@ var PluginManager = (function() {
 		this.app = app;
 		this.groups = {};
 	}
-	
-	function parseIdentifier(identifier) {
-		var name
-	}
 
 	PluginManager.prototype = {
 		host: function(plugin) {
@@ -103,23 +100,29 @@ var PluginManager = (function() {
 		},
 		add: function(plugin) {
 			if( !(plugin instanceof Plugin) ) throw new ApplicationError('illegal_arguments:plugin', plugin);
+						
 			var group = this.groups[plugin.name];
 			if( !group ) group = this.groups[plugin.name] = new PluginGroup(plugin.name);
 			group.push(plugin);
 			this.app.emit('bound', plugin);
 			return this;
 		},
-		get: function(identifier) {
-			var parsed = parseIdentifier(identifier);
-			if( !parsed ) return console.error('invalid identifier', identifier);
-						
-			var group = this.groups[parsed.name];
-			if( !group ) return console.error('plugin not found', identifier);
+		get: function(name, version) {						
+			var group = this.groups[name];
+			if( !group ) return console.error('plugin not found', name);
 			
-			return group.satisfy(parsed.version);
+			return group.get(version);
 		},
-		exists: function(identifier) {
-			return this.get(identifier) ? true : false;
+		satisfy: function(name, version) {						
+			var group = this.groups[name];
+			if( !group ) return console.error('plugin not found', name);
+			
+			return group.satisfy(version || '*');
+		},
+		exists: function(name, version) {
+			var group = this.groups[name];
+			if( !group ) return false;			
+			return group.get(version);
 		},
 		group: function(name) {
 			return this.groups[name];
@@ -135,13 +138,9 @@ var PluginManager = (function() {
 			var result = [];
 			for(var k in this.groups) {
 				var group = this.groups[k];
-				if( group && (group instanceof PluginGroup) ) {
-					var plugins = group.versions();
-				
-					for(var j=0; j < plugins.length; j++) {
-						var plugin = plugins[j];
-						result.push(plugin);
-					}
+				for(var j=0; j < group.length; j++) {
+					var plugin = group[j];
+					result.push(plugin);
 				}
 			}
 			return result;

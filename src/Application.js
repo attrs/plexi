@@ -1,18 +1,14 @@
 var path = require('path');
 var fs = require('fs');
-var npm = require("npm");
 var colors = require('colors');
-
-npm.on('log', function(message) {
-	console.log('log:' + message);
-});
-
-var Plugin = require('./Plugin.js');
 var semver = require('semver');
-var PluginManager = require('./PluginManager.js');
-var Workspace = require('./Workspace.js');
-var ApplicationError = require('./ApplicationError.js');
 var EventEmitter = require('events').EventEmitter;
+
+var Plugin = require('./Plugin.js').Plugin;
+var PluginIdentifier = require('./Plugin.js').PluginIdentifier;
+var PluginDescriptor = require('./Plugin.js').PluginDescriptor;
+var PluginManager = require('./PluginManager.js');
+var ApplicationError = require('./ApplicationError.js');
 
 if( !String.prototype.startsWith ) {
 	String.prototype.startsWith = function(s) {
@@ -62,17 +58,17 @@ var Application = function(homedir, argv) {
 		this.on('loaded', function() {
 			console.log('* plexi application loaded');
 		}).on('detected', function(plugin) {
-			console.log('* [' + plugin.identifier + '] plugin detected!');
+			console.log('* [' + plugin.id + '] plugin detected!');
 		}).on('bound', function(plugin) {
-			console.log('* [' + plugin.identifier + '] plugin bound!');
+			console.log('* [' + plugin.id + '] plugin bound!');
 		}).on('started', function(plugin) {
-			console.log('* [' + plugin.identifier + '] plugin started!');
+			console.log('* [' + plugin.id + '] plugin started!');
 		}).on('stopped', function(plugin) {
-			console.log('* [' + plugin.identifier + '] plugin stopped!');
+			console.log('* [' + plugin.id + '] plugin stopped!');
 		}).on('detect-error', function(plugin) {
-			console.log('* [' + plugin.identifier + '] plugin error!');
-		}).on('require', function(pluginId, plugin, caller, exports) {
-			console.log('* [' + caller.identifier + '] plugin require "' + pluginId + '" [' + plugin.identifier + ']');
+			console.log('* [' + plugin.id + '] plugin error!');
+		}).on('require', function(name, plugin, caller, exports) {
+			console.log('* [' + caller.id + '] plugin require "' + name + '" [' + plugin.id + ']');
 			console.log('\texports: ', exports);
 		});
 	}
@@ -178,11 +174,10 @@ Application.prototype = {
 		this.links = links;
 		this.properties = properties;
 		this.preferences = preferences.preferences || {};
-		this.workspaces = {};
 		this.plugins = new PluginManager(this);
 		
 		// set host plugin
-		this.plugins.host(new Plugin(this, process.cwd()));
+		this.plugins.host(new PluginDescriptor(this, process.cwd()).instantiate());
 		
 		this.detect();
 		this.emit('loaded', this);
@@ -195,7 +190,7 @@ Application.prototype = {
 				var link = links[i];
 				if( link && fs.existsSync(link) && fs.statSync(link).isDirectory() ) {
 					var descriptor = new PluginDescriptor(this, link);
-					if( !this.plugins.get(descriptor.id) ) {
+					if( this.plugins.exists(descriptor.name, descriptor.version) ) {
 						console.warn('* [' + descriptor.id + '] already exists version', dir);
 					} else {
 						this.plugins.add(descriptor.instantiate());
@@ -218,7 +213,7 @@ Application.prototype = {
 				var dir = path.join(this.PLUGINS_DIR, dirname);
 				if( fs.statSync(dir).isDirectory() ) {
 					var descriptor = new PluginDescriptor(this, dir);
-					if( !this.plugins.get(descriptor.id) ) {
+					if( this.plugins.exists(descriptor.name, descriptor.version) ) {
 						console.warn('* [' + descriptor.id + '] already exists version', dir);
 					} else {
 						this.plugins.add(descriptor.instantiate());
@@ -306,30 +301,15 @@ Application.prototype = {
 		});
 		return this;
 	},
-	workspace: function(pluginId) {
-		if( !pluginId ) throw new ApplicationError('missing:pluginId');
-
-		if( typeof(pluginId) === 'object' && pluginId.pluginId ) {
-			pluginId = pluginId.pluginId;
-		}
-
-		if( typeof(pluginId) !== 'string' ) throw new ApplicationError('invalid:pluginId:' + pluginId);
-
-		var ws = this.workspaces[pluginId];
-		if( !ws ) {
-			ws = new Workspace(this.WORKSPACE_DIR, pluginId);
-			this.workspaces[pluginId] = ws;
-		}
-
-		return ws;
-	},
 	preference: function(identifier) {
+		identifier = PluginIdentifier.parse(identifier);
+		
 		var prefs = this.preferences;
 		if( prefs ) {			
-			var pref = prefs[pluginId];
-			
-			if( version ) {
-				pref = prefs[pluginId + '@' + version] || pref;
+			var pref = prefs[identifier.name];
+						
+			if( identifier.version ) {
+				pref = prefs[identifier.name + '@' + identifier.version] || pref;
 			}
 			
 			if( pref ) return JSON.parse(JSON.stringify(pref));
@@ -353,6 +333,11 @@ Application.prototype = {
 		this.ee.emit.apply(this.ee, arguments);
 		return this;
 	}
+};
+
+// static methods
+Application.parseIdentifier = function(identifier) {
+	return PluginIdentifier.parse(identifier);
 };
 
 

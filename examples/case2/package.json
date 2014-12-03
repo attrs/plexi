@@ -14,9 +14,7 @@
 	"plexi": {
 		"dependencies": {
 			"plexi.workbench": "*",
-			"attrs.persist": "*",
-			"a": "file:../case1/plugins/a",
-			"attrs.argv": "git+https://github.com/attrs/attrs.argv.git"
+			"attrs.persist": "*"
 		}
 	}
 }
