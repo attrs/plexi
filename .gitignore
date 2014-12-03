@@ -15,6 +15,6 @@ results
 node_modules
 plexi_modules
 workspace
-examples/case2/www/
+www
 
 npm-debug.log
