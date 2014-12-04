@@ -3,6 +3,9 @@
 	"version": "0.1.0-alpha.8",
 	"description": "plugin system",
 	"main": "src/main.js",
+	"scripts": {
+		"test": "node -e 'console.log(\"test\")'"
+	},
 	"bin": {
 		"plexi": "bin/plexi"
 	},
