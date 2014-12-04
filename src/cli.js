@@ -205,7 +205,11 @@ CLInterface.prototype = {
 				table.push(['help, h, ?', 'help']);
 				console.log(table.toString());
 			} else if ( cmd === 'quit' || cmd === 'q' ) {
-				process.exit();
+				setTimeout(function () {
+					process.exit(0);
+				}, 100);
+				
+				process.kill(process.pid, 'SIGHUP');
 			} else if( cmd ) {
 				console.log('"' + cmd + '" is unknown command.');
 			}
