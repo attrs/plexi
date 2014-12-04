@@ -1,4 +1,9 @@
 var semver = require('semver');
+var npm = require('npm');
+var async = require('async');
+var path = require('path');
+var fs = require('fs');
+
 var Plugin = require('./Plugin.js').Plugin;
 var PluginDescriptor = require('./Plugin.js').PluginDescriptor;
 var PluginIdentifier = require('./Plugin.js').PluginIdentifier;
@@ -41,20 +46,44 @@ var PluginGroup = (function() {
 		return argv;
 	};
 	
-	fn.satisfy = function(match) {
+	fn.maxSatisfy = function(match) {
 		if( match === '*' ) return this.latest();
 		if( !match ) return null;
-
+		
 		for(var i=0; i < this.length; i++) {
 			var plugin = this[i];
 			var version = plugin.version;
-
+			
+			var v = semver.parse(version);
+			if( v ) version = [v.major, v.minor, v.patch].join('.');
+				
 			if( semver.satisfies(version, match) ) {
 				return plugin;
 			}
 		}
 
 		return null;
+	};
+	
+	fn.satisfies = function(match) {
+		if( match === '*' ) return this.slice();
+		if( match === 'latest' ) return [this.latest()];
+		if( !match ) return [];
+		
+		var arg = [];
+		for(var i=0; i < this.length; i++) {
+			var plugin = this[i];
+			var version = plugin.version;
+			
+			var v = semver.parse(version);
+			if( v ) version = [v.major, v.minor, v.patch].join('.');
+			
+			if( semver.satisfies(version, match) ) {
+				arg.push(plugin);
+			}
+		}
+
+		return arg;
 	};
 	
 	fn.latest = function() {
@@ -80,6 +109,26 @@ var PluginGroup = (function() {
 	return PluginGroup;
 })();
 
+
+
+
+var rmdirRecursive = function(path) {
+    var files = [];
+    if( fs.existsSync(path) ) {
+        files = fs.readdirSync(path);
+        files.forEach(function(file,index){
+            var curPath = path + "/" + file;
+            if(fs.lstatSync(curPath).isDirectory()) { // recurse
+                rmdirRecursive(curPath);
+            } else { // delete file
+                fs.unlinkSync(curPath);
+            }
+        });
+        fs.rmdirSync(path);
+    }
+};
+
+// class PluginManager
 var PluginManager = (function() {
 	"use strict"
 	
@@ -113,13 +162,27 @@ var PluginManager = (function() {
 			
 			return group.get(version);
 		},
-		satisfy: function(name, version) {						
+		maxSatisfy: function(name, version) {						
 			var group = this.groups[name];
 			if( !group ) return console.error('plugin not found', name);
 			
-			return group.satisfy(version || '*');
+			return group.maxSatisfy(version || '*');
+		},
+		satisfies: function(name, version) {						
+			var group = this.groups[name];
+			if( !group ) return [];//console.error('plugin not found', name);
+			
+			return group.satisfies(version || '*');
 		},
 		exists: function(name, version) {
+			var pos;
+			if( ~(pos = name.indexOf('@')) ) {
+				version = name.substring(pos + 1);
+				name = name.substring(0, pos);
+				
+				console.log('^^^', name, version);
+			}
+				
 			var group = this.groups[name];
 			if( !group ) return false;			
 			return group.get(version);
@@ -169,71 +232,51 @@ var PluginManager = (function() {
 			if( !identifier ) throw new ApplicationError('invalid_plugin_identifier:' + identifier);
 			if( fn && typeof(fn) !== 'function' ) throw new ApplicationError('illegal_arguments(fn)', fn);
 			if( !fn ) fn = function() {}
-				
-			var npm = require('npm');
-			var async = require('async');
-			var path = require('path');
-			var fs = require('fs');
-		
-			var rmdirRecursive = function(path) {
-			    var files = [];
-			    if( fs.existsSync(path) ) {
-			        files = fs.readdirSync(path);
-			        files.forEach(function(file,index){
-			            var curPath = path + "/" + file;
-			            if(fs.lstatSync(curPath).isDirectory()) { // recurse
-			                rmdirRecursive(curPath);
-			            } else { // delete file
-			                fs.unlinkSync(curPath);
-			            }
-			        });
-			        fs.rmdirSync(path);
-			    }
-			};
 		
 			var pluginsdir = this.app.PLUGINS_DIR;
-			var tmpdir = path.resolve(this.app.PLUGINS_DIR, '-temp');
+			var tmpbase = path.resolve(this.app.PLUGINS_DIR, '.temp');
 		
-			rmdirRecursive(tmpdir);
+			rmdirRecursive(tmpbase);
 		
-			var err, results = [], self = this;
+			var err, results, self = this;
+			
+			var error = function(err) {
+				q.kill();
+				rmdirRecursive(tmpbase);
+				fn(err);
+			};
+			
 			var q = async.queue(function (task, callback) {
 				var identifier = task.identifier;
-			
-				if( self.exists(identifier) ) {
-					console.log('* [' + identifier + '] is already exists.');
-					callback();
-					return;
-				}
+				var tmpdir = path.resolve(tmpbase, '' + Math.random());
 		    
 				console.log('* installing ' + identifier);
 				npm.load(function(err) {
-					if(err) return callback('[' + identifier + '] npm load error:' + err);
-				
-					npm.commands.install(tmpdir, identifier, function (err, data) {
-						if(err) return callback('[' + identifier + '] npm install error:' + err);
+					if(err) return error('[' + identifier + '] npm load error:' + err);
 					
+					npm.commands.install(tmpdir, identifier, function (err, data) {
+						if(err) return error('[' + identifier + '] npm install error:' + err);
+				
 						try {
 							console.log('data', data[data.length - 1][1]);
 							var downloaded = path.resolve(process.cwd(), data[data.length - 1][1]);
 							console.log('* [' + identifier + '] downloaded "' + downloaded + '"');
-						
+					
 							var pkg = require(path.resolve(downloaded, 'package.json'));
-						
+					
 							var npmname = pkg.name;
 							var npmversion = pkg.version;
 							var npmplexi = pkg.plexi;
-						
+					
 							console.log('* name', npmname);
 							console.log('* version', npmversion);
-							console.log('* plexi', npmplexi);
-						
+					
 							if( !npmname || !npmversion ) {
 								console.error('[' + identifier + '] package.json error', pkg);
 								callback('[' + identifier + '] package.json error(illegal name or version)');
 								return;
 							}
-													
+												
 							if( npmplexi && npmplexi.dependencies ) {
 								for(var name in npmplexi.dependencies) {
 									var v = npmplexi.dependencies[name];
@@ -241,32 +284,80 @@ var PluginManager = (function() {
 									else q.push({identifier: (( v && v !== '*' ) ? (name + '@\'' + v + '\'') : name)});							
 								}
 							}
-						
-							var targetdir = path.resolve(pluginsdir, (npmname + '@' + npmversion));
-							if( fs.existsSync(downloaded) && !fs.existsSync(targetdir) ) fs.renameSync(downloaded, targetdir);
 					
-							results.push(identifier);
+							var targetdir = path.resolve(pluginsdir, (npmname + '@' + npmversion));
+							
+							if( fs.existsSync(targetdir) ) rmdirRecursive(targetdir);
+							fs.renameSync(downloaded, targetdir);
+													
+							var info = {
+								name: npmname,
+								version: npmversion,
+								from: identifier
+							};
+							
+							if( !results ) {
+								results = {
+									name: npmname,
+									version: npmversion,
+									from: identifier,
+									installed: [info]
+								};
+							} else {
+								results.installed.push(info);
+							}	
+							
 							callback();
 						} catch(error) {
-							console.error(error.message, error.stack);
-							callback(error.message);
+							return error('[' + identifier + '] npm install error:' + error.message);
 						}
 					});
 				});
 			}, 1);
 		
 			q.drain = function() {
-			    console.log('* queue finished!', err, results);
+				rmdirRecursive(tmpbase);
 				fn(err, results);
-				rmdirRecursive(tmpdir);
 			};
 		
 			q.push({identifier: identifier}, function (err) {
 				if( err ) console.log('* error occured', err);
 			});
+			
+			return this;
 		},
-		unintall: function(identifier, fn) {
-		
+		uninstall: function(identifier, fn) {
+			if( !identifier ) throw new ApplicationError('invalid_plugin_identifier:' + identifier);
+			
+			identifier = PluginIdentifier.parse(identifier);
+			
+			var pluginsdir = this.app.PLUGINS_DIR;
+			var plugins = this.satisfies(identifier.name, identifier.version);
+			
+			var results = {
+				name: identifier.name,
+				range: identifier.version,
+				matches: plugins.length,
+				uninstalled: []
+			};
+			if( plugins ) {
+				for(var i=0; i < plugins.length; i++) {
+					var plugin = plugins[i];
+					plugin.stop();
+					var dir = path.resolve(pluginsdir, plugin.id.toString());
+					rmdirRecursive(dir);
+					
+					results.uninstalled.push({
+						name: plugin.name,
+						version: plugin.version,
+						dir: dir
+					});
+				}
+			}
+			
+			if( fn ) fn(null, results);
+			
+			return this;
 		}
 	};
 	

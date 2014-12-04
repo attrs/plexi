@@ -4,10 +4,18 @@
 
 process.title = 'plexi';
 
+var path = require('path');
+var fs = require('fs');
+var mkdirp = require('mkdirp');
 var Application = require('../src/Application.js');
-var cli = require('../src/cli.js');
 var argv = process.argv;
-var plexi = require('../');
+
+// check package file
+var packagefile = path.resolve(process.cwd(), 'package.json');
+if( !fs.existsSync(packagefile) ) {
+	console.error('ERROR: package.json not found. npm init first.', process.cwd());
+	return;
+}
 
 var cmd = argv[2];
 var arg = [];
@@ -23,53 +31,86 @@ if( true ) {
 	}
 }
 
-console.log('* cmd', cmd);
-console.log('* arg', arg);
-console.log('* options', options);
+//console.log('* cmd', cmd);
+//console.log('* arg', arg);
+//console.log('* options', options);
 
-if( cmd === 'install' ) {
-	console.log('* plexi installing...', arg[0] || '(all dependencies)');
-		
-	var identity = arg[0];
+var app = new Application(process.cwd(), {
+	debug: options.debug
+});
+
+var fn = function(err, results) {
+	if( err ) return console.error('error', err);
+};
+
+var savefn = function(err, results) {
+	if( err ) return console.error('error', err);
 	
-	var app = new Application(process.cwd(), options);
-	var fn = function(err, results) {
-		if( err ) return console.error('Plugin install error', err);
-		console.log('Plugin installed successfully!', results);
-	};
-	if( identity ) {
-		app.plugins.install(identity, fn);
-	} else {
-		app.installAll(fn);
+	if( cmd === 'install' && options.save ) {
+		if( !app.manifest.plexi ) app.manifest.plexi = {};
+		if( !app.manifest.plexi.dependencies ) app.manifest.plexi.dependencies = {};
+	
+		results.forEach(function(pkg) {
+			app.manifest.plexi.dependencies[pkg.name] = '^' + pkg.version;
+		});
+		app.manifest.save();
+	} else if( cmd === 'uninstall' && options.save ) {
+		console.log('results', results);
+		results.forEach(function(pkg) {
+			if( app.manifest.plexi && app.manifest.plexi.dependencies ) {
+				console.log('for delete', pkg, pkg.name);
+				delete app.manifest.plexi.dependencies[pkg.name];
+			}
+		});
+		app.manifest.save();
 	}
-} else if( cmd === 'update' ) {
-	console.log('* plexi installing...', arg[0] || '(all dependencies)');
+};
+
+if( cmd === 'init' ) {
+	var activator = arg[0] || 'activator.js';
+	if( !app.manifest.plexi ) app.manifest.plexi = {};
+	app.manifest.plexi.activator = activator;
+	app.manifest.save();
 	
-	var identity = arg[0];
-	
-	var app = new Application(process.cwd(), options);
-	var fn = function(err, results) {
-		if( err ) return console.error('Plugin update error', err);
-		console.log('Plugin updated successfully!', results);
-	};
-	if( identity ) {
-		app.plugins.update(identity, fn);
-	} else {
-		app.updateAll(fn);	
+	var file = app.path(activator);
+	if( !fs.existsSync(file) ) {
+		mkdirp.sync(path.resolve(file, '..'));
+		var data = fs.readFileSync(path.resolve(__dirname, '../src/activator.default.js'), {encoding: 'utf8'});
+		fs.writeFileSync(file, data, {encoding: 'utf8'});
 	}
+} else if( cmd === 'install' ) {
+	if( options.debug ) console.log('* plugin installing...', arg);
+	
+	if( arg.length ) app.install(arg, savefn);
+	else app.installAll(fn);
+} else if( cmd === 'uninstall' ) {
+	if( options.debug ) console.log('* plugin uninstalling...', arg);
+	
+	if( arg.length ) app.uninstall(arg, savefn);
+	else app.uninstallAll(fn);
 } else if( cmd === 'link' ) {
-	console.log('* plexi linking...', options);
+	// TODO
+	if( options.debug ) console.log('* linking...', arg || '');
 	
-	var app = new Application(process.cwd(), options);
-	app.updateAll();
+	app.link(arg, savefn);
+} else if( cmd === 'unlink' ) {
+	// TODO
+	if( options.debug ) console.log('* linking...', arg || '');
+	
+	app.unlink(arg, savefn);
+} else if( cmd === 'update' ) {
+	if( options.debug ) console.log('* updating...');
+	
+	app.uninstallAll(function(err) {
+		if( err ) return console.error('error', err);
+		app.installAll(fn);
+	});
 } else if( cmd === 'start' ) {
-	console.log('* plexi starting...', options);
+	console.log('* starting...', options);
 	
-	plexi.start(process.cwd(), options);
-} else if( cmd === 'dev' ) {
-	console.log('* plexi starting(dev)...', options);
+	app.start(options);
 	
-	plexi.dev(process.cwd(), options);
+	if( options.cli !== false ) app.cli().start();
 } else {
-	console.log('input command:install,update,link,start,dev');
+	console.log('input command:init,install,uninstall,update,link,unlink,start');
 }

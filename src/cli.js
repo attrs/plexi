@@ -27,10 +27,10 @@ CLInterface.prototype = {
 	},
 	start: function() {
 		var self = this;
-
+		
+		process.stdout.write('\nplexi$ ');
 		process.stdin.resume();
 		process.stdin.setEncoding('utf-8');
-		process.stdout.write('\nplexi$ ');
 		
 		var progressing = false;
 
@@ -70,8 +70,7 @@ CLInterface.prototype = {
 					table.push(['hostname  ', os.hostname()]);
 					table.push(['nodejs  ', process.version]);
 					table.push(['plexi.version  ', app.properties['plexi.version']]);
-					table.push(['home  ', app.HOME]);
-					table.push(['preferences.file  ', app.PREFERENCES_FILE]);
+					table.push(['home  ', app.home]);
 					table.push(['plugins.dir  ', app.PLUGINS_DIR]);
 					table.push(['workspace.dir  ', app.WORKSPACE_DIR]);
 					table.push(['log.dir  ', app.LOG_DIR]);
@@ -110,7 +109,7 @@ CLInterface.prototype = {
 						console.log('input plugin index (Please check with "status" command) [0-' + (plugins.length - 1) + ']');
 					}
 				}
-			} else if( cmd === 'ss' || cmd === 'status' || cmd === 'list' || cmd === 'ls' ) {
+			} else if( cmd === 'ss' || cmd === 'status' ) {
 				if( !app ) return console.log('application not selected');
 
 				var table = new Table({
@@ -195,17 +194,17 @@ CLInterface.prototype = {
 					 style: { compact : true, 'padding-left' : 1 }
 				});
 				
-				table.push(['profile || p', 'show system profile']);
-				table.push(['ss || status || list || ls', 'show plugin status list']);
+				table.push(['profile, p', 'show system profile']);
+				table.push(['status, ss', 'show plugin status list']);
 				table.push(['start {index}', 'start plugin']);
 				table.push(['stop {index}', 'stop plugin']);
 				table.push(['stop all', 'stop all plugins']);
 				table.push(['install (name)[@(version)] || (git or file url)', 'install new plugin']);
 				table.push(['uninstall (name)[@(version)]', 'uninstall selected plugin']);
-				table.push(['quit || q || exit || bye', 'quit process']);
-				table.push(['help || h || ?', 'help']);
+				table.push(['quit, q', 'quit process']);
+				table.push(['help, h, ?', 'help']);
 				console.log(table.toString());
-			} else if ( cmd === 'quit' || cmd === 'q' || cmd === 'exit' || cmd === 'exit' ) {
+			} else if ( cmd === 'quit' || cmd === 'q' ) {
 				process.exit();
 			} else if( cmd ) {
 				console.log('"' + cmd + '" is unknown command.');

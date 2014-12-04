@@ -62,7 +62,7 @@ PluginContext.prototype = {
 		var version = current.dependencies[name];
 		if( !version ) throw new ApplicationError('not found dependency:' + name);
 		if( !semver.valid(version) ) version = '*';
-		var plugin = this.application.plugins.satisfy(name, version);
+		var plugin = this.application.plugins.maxSatisfy(name, version);
 				
 		if( plugin ) {
 			//console.log('\t- require -----------------------------------');
@@ -140,8 +140,9 @@ var Plugin = (function() {
 			}
 		});
 		
-		var starter = function emptyStarter() { console.warn('* [' + descriptor.id + '] executed empty starter'); },
-			stopper = function emptyStopper() { console.warn('* [' + descriptor.id + '] executed empty stopper'); };
+		var starter = function emptyStarter() { if( app.debug ) console.warn('* [' + descriptor.id + '] executed empty starter'); },
+			stopper = function emptyStopper() { if( app.debug ) console.warn('* [' + descriptor.id + '] executed empty stopper'); };
+		
 		if( this.activator ) {
 			var activatorjs = require(path.resolve(this.dir, this.activator));
 
@@ -162,7 +163,7 @@ var Plugin = (function() {
 		} else if( this.manifest.main ) {
 			var mainjs = require(path.resolve(this.dir, this.manifest.main));
 			starter = function mainStarter() {
-				console.warn('* [' + descriptor.id + '] has no activator, executed main instead');
+				if( app.debug ) console.warn('* [' + descriptor.id + '] has no activator, executed main instead');
 				return mainjs;
 			};
 		}

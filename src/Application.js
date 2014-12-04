@@ -9,6 +9,7 @@ var PluginIdentifier = require('./Plugin.js').PluginIdentifier;
 var PluginDescriptor = require('./Plugin.js').PluginDescriptor;
 var PluginManager = require('./PluginManager.js');
 var ApplicationError = require('./ApplicationError.js');
+var cli = require('./cli.js');
 
 if( !String.prototype.startsWith ) {
 	String.prototype.startsWith = function(s) {
@@ -50,14 +51,13 @@ var rmdirRecursive = function(path) {
 var Application = function(homedir, argv) {
 	if( !homedir ) throw new ApplicationError('missing home directory', homedir);
 	
-	if( argv && argv.debug ) this.debug = true;
+	argv = argv || {};
+	if( argv.debug ) this.debug = true;
 	
 	this.ee = new EventEmitter();
 	
 	if( this.debug ) {
-		this.on('loaded', function() {
-			console.log('* plexi application loaded');
-		}).on('detected', function(plugin) {
+		this.on('detected', function(plugin) {
 			console.log('* [' + plugin.id + '] plugin detected!');
 		}).on('bound', function(plugin) {
 			console.log('* [' + plugin.id + '] plugin bound!');
@@ -73,159 +73,164 @@ var Application = function(homedir, argv) {
 		});
 	}
 	
-	this.load(homedir, argv);
+	var home = this.home = homedir;
+	var manifest = require(path.resolve(home, 'package.json'));
+	var plexipkg = require('../package.json');
+	var plexi = manifest.plexi || {};
+	var dependencies = plexi.dependencies || {};
+	var version = plexipkg.version;
+	
+	var preferences, env, links;
+	
+	Object.defineProperty(manifest, 'save', {
+		value: function(fn) {
+			var data = JSON.stringify(this, null, '\t');
+			fs.writeFileSync(path.resolve(home, 'package.json'), data, {encoding:'utf8'});
+		},
+		enumerable: false,
+		configurable: false,
+		writable: false
+	});
+	
+	if( !argv.ignorelinks ) {
+		var linksfile = path.resolve(home, '.plexilinks');
+		if( fs.existsSync(linksfile) && fs.statSync(linksfile).isFile() ) {
+			var links_text = fs.readFileSync(linksfile, {encoding:'utf8'});
+			if( links_text ) {
+				var links_array = links_text.toString().split('\r').join('').split('\t').join('').split('\n');
+				
+				if( links_array.length ) {
+					links = [];
+					for(var i=0; i < links_array.length; i++) {
+						var link = links_array[i];
+						if( link ) link = link.trim();
+						if( link ) links.push(link);
+					}
+					if( !links.length ) links = null;
+				}
+			}
+		}
+	}
+	
+	// read preference file
+	if( true ) {		
+		var pref_js_file = path.resolve(home, 'plexi.js');
+		var pref_json_file = path.resolve(home, 'plexi.json');
+		
+		if( fs.existsSync(pref_js_file) && fs.statSync(pref_js_file).isFile() ) {
+			preferences = require(pref_js_file);
+		} else if( fs.existsSync(pref_json_file) && fs.statSync(pref_json_file).isFile() ) {
+			preferences = require(pref_json_file);
+		} else {
+			preferences = {};
+		}
+	}
+	
+	// read env
+	env = preferences.env || {};
+	
+	this.PLUGINS_DIR = path.resolve(home, env['plugins.dir'] || 'plexi_modules');
+	this.WORKSPACE_DIR = path.resolve(home, env['workspace.dir'] || 'workspace');
+	this.LOG_DIR = path.resolve(home, env['log.dir'] || 'logs');
+	
+	//if( !fs.existsSync(this.PLUGINS_DIR) ) fs.mkdirSync(this.PLUGINS_DIR);
+	//if( !fs.existsSync(this.WORKSPACE_DIR) ) fs.mkdirSync(this.WORKSPACE_DIR);
+
+	// read properties
+	var properties = {};
+	if( typeof(argv) === 'object' ) {
+		for( var key in argv ) {
+			if( !key || !argv.hasOwnProperty(key) ) continue;
+			properties[key] = argv[key];
+		}
+	}		
+	
+	if( preferences.properties ) {
+		for( var key in preferences.properties ) {
+			if( !key || !preferences.properties.hasOwnProperty(key) ) continue;
+			properties[key] = preferences.properties[key];
+		}
+	}
+	
+	properties['home'] = this.home;
+	properties['plexi.version'] = version;
+	properties['workspace.dir'] = this.WORKSPACE_DIR;
+	properties['plugins.dir'] = this.PLUGINS_DIR;
+	properties['log.dir'] = this.LOG_DIR;
+	
+	try {
+		preferences = JSON.stringify(preferences);
+		for(var k in properties) {
+			var value = properties[k] || '';
+			preferences = preferences.split('{' + k + '}').join(value);
+		}
+		
+		preferences = preferences.split('\\').join('/');
+		preferences = JSON.parse(preferences);
+	} catch(err) {
+		throw new ApplicationError('application_load_error:config_file_parse:' + pref_file + ':' + err.message, err);
+	}
+
+	// setup instance attributes
+	this.manifest = manifest;
+	this.links = links;
+	this.properties = properties;
+	this.preferences = preferences.preferences || {};
+	this.plugins = new PluginManager(this);
+	
+	// set host plugin
+	this.plugins.host(new PluginDescriptor(this, process.cwd()).instantiate());
+	
+	// links 가 있다면 활성화
+	var links = this.links;
+	if( links ) {
+		for(var i=0; i < links.length; i++) {
+			var link = links[i];
+			if( link && fs.existsSync(link) && fs.statSync(link).isDirectory() ) {
+				var descriptor = new PluginDescriptor(this, link);
+				if( !this.plugins.exists(descriptor.name, descriptor.version) ) {
+					this.plugins.add(descriptor.instantiate());
+				} else {
+					console.warn(('* [' + descriptor.id + '] already exists, ignored.').yellow, link);						
+				}
+			} else {
+				console.warn(('[WARN] path in .plexilinks : "' + link + '" does not exists, ignored.').underline.bgBlack.yellow);
+			}
+		}
+	}
+	
+	// plugins.dir 에서 활성화
+	if( fs.existsSync(this.PLUGINS_DIR) ) {
+		var files = fs.readdirSync(this.PLUGINS_DIR);
+
+		for(var i=0; i < files.length; i++) {
+			var dirname = files[i];
+		
+			if( dirname.startsWith('-') || dirname.startsWith('.') ) continue;
+
+			var dir = path.resolve(this.PLUGINS_DIR, dirname);
+			if( fs.statSync(dir).isDirectory() ) {
+				var descriptor = new PluginDescriptor(this, dir);
+				if( this.plugins.exists(descriptor.name, descriptor.version) ) {
+					console.warn(('* [' + descriptor.id + '] already exists, ignored.').yellow, dir);
+				} else {
+					this.plugins.add(descriptor.instantiate());
+				}
+			}
+		}
+	}
 };
 
 Application.prototype = {
-	load: function(homedir, argv) {
-		var home = this.HOME = this.home = homedir;
-		
-		var pkg = require(path.join(home, 'package.json'));
-		var plexipkg = require('../package.json');
-		var plexi = pkg.plexi || {};
-		var dependencies = plexi.dependencies || {};
-		var version = plexipkg.version;
-		
-		var preferences, env, links;
-		
-		if( !argv.ignorelinks ) {
-			var linksfile = path.join(home, '.plexilinks');
-			if( fs.existsSync(linksfile) && fs.statSync(linksfile).isFile() ) {
-				var links_text = fs.readFileSync(linksfile, {encoding:'utf8'});
-				if( links_text ) {
-					var links_array = links_text.toString().split('\r').join('').split('\t').join('').split('\n');
-					
-					if( links_array.length ) {
-						links = [];
-						for(var i=0; i < links_array.length; i++) {
-							var link = links_array[i];
-							if( link ) link = link.trim();
-							if( link ) links.push(link);
-						}
-						if( !links.length ) links = null;
-					}
-				}
-			}
-		}
-		
-		// read preference file
-		if( true ) {		
-			var pref_js_file = path.join(home, 'plexi.js');
-			var pref_json_file = path.join(home, 'plexi.json');
-			
-			if( fs.existsSync(pref_js_file) && fs.statSync(pref_js_file).isFile() ) {
-				preferences = require(pref_js_file);
-				this.PREFERENCES_FILE = pref_js_file;
-			} else if( fs.existsSync(pref_json_file) && fs.statSync(pref_json_file).isFile() ) {
-				preferences = require(pref_json_file);
-				this.PREFERENCES_FILE = pref_json_file;
-			} else {
-				preferences = {};
-			}
-		}
-		
-		// read env
-		env = preferences.env || {};
-		
-		this.PLUGINS_DIR = path.join(home, env['plugins.dir'] || 'plexi_modules');
-		this.WORKSPACE_DIR = path.join(home, env['workspace.dir'] || 'workspace');
-		this.LOG_DIR = path.join(home, env['log.dir'] || 'logs');
-		
-		//if( !fs.existsSync(this.PLUGINS_DIR) ) fs.mkdirSync(this.PLUGINS_DIR);
-		//if( !fs.existsSync(this.WORKSPACE_DIR) ) fs.mkdirSync(this.WORKSPACE_DIR);
-
-		// read properties
-		var properties = {};
-		if( typeof(argv) === 'object' ) {
-			for( var key in argv ) {
-				if( !key || !argv.hasOwnProperty(key) ) continue;
-				properties[key] = argv[key];
-			}
-		}		
-		
-		if( preferences.properties ) {
-			for( var key in preferences.properties ) {
-				if( !key || !preferences.properties.hasOwnProperty(key) ) continue;
-				properties[key] = preferences.properties[key];
-			}
-		}
-		
-		properties['home'] = this.HOME;
-		properties['plexi.version'] = version;
-		properties['preferences.file'] = this.PREFERENCES_FILE;
-		properties['workspace.dir'] = this.WORKSPACE_DIR;
-		properties['plugins.dir'] = this.PLUGINS_DIR;
-		properties['log.dir'] = this.LOG_DIR;
-		
-		try {
-			preferences = JSON.stringify(preferences);
-			for(var k in properties) {
-				var value = properties[k] || '';
-				preferences = preferences.split('{' + k + '}').join(value);
-			}
-			
-			preferences = preferences.split('\\').join('/');
-			preferences = JSON.parse(preferences);
-		} catch(err) {
-			throw new ApplicationError('application_load_error:config_file_parse:' + pref_file + ':' + err.message, err);
-		}
-	
-		// setup instance attributes
-		this.links = links;
-		this.properties = properties;
-		this.preferences = preferences.preferences || {};
-		this.plugins = new PluginManager(this);
-		
-		// set host plugin
-		this.plugins.host(new PluginDescriptor(this, process.cwd()).instantiate());
-		
-		this.detect();
-		this.emit('loaded', this);
+	path: function(f) {
+		return path.join(this.home, f);
 	},
-	detect: function() {
-		// links 가 있다면 활성화
-		var links = this.links;
-		if( links ) {
-			for(var i=0; i < links.length; i++) {
-				var link = links[i];
-				if( link && fs.existsSync(link) && fs.statSync(link).isDirectory() ) {
-					var descriptor = new PluginDescriptor(this, link);
-					if( this.plugins.exists(descriptor.name, descriptor.version) ) {
-						console.warn('* [' + descriptor.id + '] already exists version', dir);
-					} else {
-						this.plugins.add(descriptor.instantiate());
-					}
-				} else {
-					console.warn(('[WARN] path in .plexilinks : "' + link + '" does not exists, ignored.').underline.bgBlack.yellow);
-				}
-			}
-		}
-		
-		// plugins.dir 에서 활성화
-		if( fs.existsSync(this.PLUGINS_DIR) ) {
-			var files = fs.readdirSync(this.PLUGINS_DIR);
-	
-			for(var i=0; i < files.length; i++) {
-				var dirname = files[i];
-			
-				if( dirname.startsWith('-') || dirname.startsWith('.') ) continue;
-	
-				var dir = path.join(this.PLUGINS_DIR, dirname);
-				if( fs.statSync(dir).isDirectory() ) {
-					var descriptor = new PluginDescriptor(this, dir);
-					if( this.plugins.exists(descriptor.name, descriptor.version) ) {
-						console.warn('* [' + descriptor.id + '] already exists version', dir);
-					} else {
-						this.plugins.add(descriptor.instantiate());
-					}
-				}
-			}
-		}
+	cli: function() {
+		return this._cli = this._cli || cli.application(this);
 	},
 	start: function() {
 		var host = this.plugins.host();
 		if( host ) host.start();
-		this.emit('application-started', this);
 		return this;
 	},
 	plugins: function() {
@@ -233,72 +238,76 @@ Application.prototype = {
 	},
 	link: function(link) {
 		if( link && fs.existsSync(link) && fs.statSync(link).isDirectory() ) {
-			var plugin = new Plugin(this, link);
-			this.plugins.add(plugin);
+			var descriptor = new PluginDescriptor(this, link);
+			if( !this.plugins.exists(descriptor.name, descriptor.version) ) {
+				this.plugins.add(descriptor.instantiate());
+			} else {
+				console.warn('[WARN] "' + descriptor.id + '" already exists, ignored.', link);				
+			}
 		} else {
 			console.warn(('[WARN] .plexilinks : "' + link + '" does not exists, ignored.').underline.bgBlack.yellow);
 		}
+		
+		return false;
 	},
-	installAll: function(fn) {
-		if( fn && typeof(fn) !== 'function' ) throw new ApplicationError('illegal_arguments', fn);
-		
-		var debug = this.debug;
-		if( !fn ) fn = function(err, results) {
-			if( debug ) return console.error('* plugin install error'.red, err);
-			console.log('* plugin installed'.green, results);
-		}; 
-			
-		var pkg = require(path.join(this.home, 'package.json'));
-		var plexi = pkg.plexi || {};
-		var dependencies = plexi.dependencies || {};
-		var async = require('async');
-		
+	install: function(pkgs, fn) {				
 		var tasks = [];
 		var plugins = this.plugins;
-		for(var pluginId in dependencies) {
-			var version = dependencies[pluginId];
-			
-			tasks.push((function(pluginId, version) {
+		pkgs.forEach(function(pkg) {			
+			tasks.push((function(pkg) {
 				return function(callback) {
-					plugins.install(pluginId, version, function(err, result) {
+					plugins.install(pkg, function(err, result) {
 						callback(err, result);
 					});
 				};
-			})(pluginId, version));
-		}
+			})(pkg));
+		});
 		
-		async.series(tasks, function(err, results){
-			fn(err, results);
+		require('async').series(tasks, function(err, results){
+			if( fn ) fn(err, results);
+		});
+		return this;
+	},
+	installAll: function(fn) {
+		var manifest = this.manifest;
+		var dependencies = (manifest.plexi && manifest.plexi.dependencies) || {};
+		
+		var pkgs = [];
+		for(var name in dependencies) {
+			var version = dependencies[name];
+			if( ~version.indexOf('/') || !version.indexOf('file:') ) pkgs.push(version);
+			else pkgs.push(name + '@' + version);
+		}
+		this.install(pkgs, fn);
+		return this;
+	},
+	uninstall: function(pkgs, fn) {
+		var tasks = [];
+		var plugins = this.plugins;
+		pkgs.forEach(function(pkg) {			
+			tasks.push((function(pkg) {
+				return function(callback) {
+					plugins.uninstall(pkg, function(err, result) {
+						callback(err, result);
+					});
+				};
+			})(pkg));
+		});
+		
+		require('async').series(tasks, function(err, results){
+			if( fn ) fn(err, results);
 		});
 		return this;
 	},
 	uninstallAll: function(fn) {
-		if( fn && typeof(fn) !== 'function' ) throw new ApplicationError('illegal_arguments', fn);
-		
-		var debug = this.debug;
-		if( !fn ) fn = function(err, results) {
-			if( debug ) return console.error('* plugin uninstall error'.red, err);
-			console.log('* plugin uninstalled'.green, results);
-		}; 
-			
-		var pkg = require(path.join(this.home, 'package.json'));
-		var plexi = pkg.plexi || {};
-		var dependencies = plexi.dependencies || {};
-		var async = require('async');
-		
-		var tasks = [];
-		for(var pluginId in dependencies) {
-			var version = dependencies[pluginId] || '*';
-			tasks.push(function(callback) {
-				this.plugins.uninstall(pluginId, version, function(err, result) {
-					callback(err, result);				
-				});
-			});
+		var all = this.plugins.all();
+		var pkgs = [];
+		for(var i=0; i < all.length; i++) {
+			var plugin = all[i];
+			if( !~pkgs.indexOf(plugin.name) ) pkgs.push(plugin.name);
 		}
 		
-		async.series(tasks, function(err, results){
-			fn(err, results);
-		});
+		this.uninstall(pkgs, fn);
 		return this;
 	},
 	preference: function(identifier) {
