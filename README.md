@@ -1,5 +1,5 @@
-# plexi
-[![Build Status](https://travis-ci.org/attrs/plexi.svg?branch=master)](https://travis-ci.org/attrs/plexi)
+# plexi [![Build Status](https://travis-ci.org/attrs/plexi.svg?branch=master)](https://travis-ci.org/attrs/plexi)
+
 
 Plexi is plugin system for nodejs. Helps to make a horizontal plug-in architecture.
 
