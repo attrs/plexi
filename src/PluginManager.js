@@ -3,6 +3,7 @@ var npm = require('npm');
 var async = require('async');
 var path = require('path');
 var fs = require('fs');
+var colors = require('colors');
 
 var Plugin = require('./Plugin.js').Plugin;
 var PluginDescriptor = require('./Plugin.js').PluginDescriptor;
@@ -90,8 +91,21 @@ var PluginGroup = (function() {
 		return this[0];
 	};
 	
+	fn.drop = function(plugin) {
+		for(var index;(index = this.indexOf(plugin)) >= 0;) {
+			this.splice(index, 1);
+		}
+		
+		this.sort(function compare(a, b) {
+			return semver.compare(b.version, a.version);
+		});
+		
+		return this;
+	};
+	
 	fn.push = function(plugin) {
 		if( (plugin instanceof Plugin) && plugin.name === this.name ) {
+			if( ~this.indexOf(plugin) ) return this;
 			Array.prototype.push.call(this, plugin);
 
 			this.sort(function compare(a, b) {
@@ -100,6 +114,8 @@ var PluginGroup = (function() {
 		} else {
 			throw new ApplicationError('invalid_plugin:' + plugin.name, plugin);
 		}
+		
+		return this;
 	};
 	
 	fn.toString = function() {
@@ -156,15 +172,20 @@ var PluginManager = (function() {
 			this.app.emit('bound', plugin);
 			return this;
 		},
+		drop: function(plugin) {
+			var group = this.groups[plugin.name];
+			if( group ) group.drop(plugin);
+			return this;
+		},
 		get: function(name, version) {						
 			var group = this.groups[name];
-			if( !group ) return console.error('plugin not found', name);
+			if( !group ) return null;//console.error('plugin not found', name);
 			
 			return group.get(version);
 		},
 		maxSatisfy: function(name, version) {						
 			var group = this.groups[name];
-			if( !group ) return console.error('plugin not found', name);
+			if( !group ) return null;//console.error('plugin not found', name);
 			
 			return group.maxSatisfy(version || '*');
 		},
@@ -207,7 +228,7 @@ var PluginManager = (function() {
 				}
 			}
 			return result;
-		},	
+		},
 		// control
 		start: function(identifier) {
 			var plugins = this.get(identifier);
@@ -250,17 +271,17 @@ var PluginManager = (function() {
 				var identifier = task.identifier;
 				var tmpdir = path.resolve(tmpbase, '' + Math.random());
 		    
-				console.log('* installing ' + identifier);
+				//console.log('* installing ' + identifier);
 				npm.load(function(err) {
-					if(err) return error('[' + identifier + '] npm load error:' + err);
+					if(err) return error('[' + identifier + '] npm load error: ' + err);
 					
 					npm.commands.install(tmpdir, identifier, function (err, data) {
-						if(err) return error('[' + identifier + '] npm install error:' + err);
+						if(err) return error('[' + identifier + '] npm install error: ' + err);
 				
 						try {
-							console.log('data', data[data.length - 1][1]);
+							//console.log('data', data[data.length - 1][1]);
 							var downloaded = path.resolve(process.cwd(), data[data.length - 1][1]);
-							console.log('* [' + identifier + '] downloaded "' + downloaded + '"');
+							//console.log('* [' + identifier + '] downloaded "' + downloaded + '"');
 					
 							var pkg = require(path.resolve(downloaded, 'package.json'));
 					
@@ -268,32 +289,36 @@ var PluginManager = (function() {
 							var npmversion = pkg.version;
 							var npmplexi = pkg.plexi;
 					
-							console.log('* name', npmname);
-							console.log('* version', npmversion);
+							//console.log('* name', npmname);
+							//console.log('* version', npmversion);
 					
 							if( !npmname || !npmversion ) {
-								console.error('[' + identifier + '] package.json error', pkg);
-								callback('[' + identifier + '] package.json error(illegal name or version)');
-								return;
+								return error('[' + npmname + '@' + npmversion + '] package.json error(missing name or version)');
 							}
-												
+							
 							if( npmplexi && npmplexi.dependencies ) {
 								for(var name in npmplexi.dependencies) {
 									var v = npmplexi.dependencies[name];
-									if( ~v.indexOf('://') ) q.push({identifier:v});
-									else q.push({identifier: (( v && v !== '*' ) ? (name + '@\'' + v + '\'') : name)});							
+									var match = self.maxSatisfy(name, v);
+									if( !match ) {
+										if( ~v.indexOf('://') ) q.push({identifier:v});
+										else q.push({identifier: (( v && v !== '*' ) ? (name + '@\'' + v + '\'') : name)});
+									} else {
+										console.log('[' + npmname.yellow + '@' + npmversion.yellow + ']' + (' dependency ' + name + '@' + v + ' already exists.').cyan);
+									}
 								}
 							}
 					
-							var targetdir = path.resolve(pluginsdir, (npmname + '@' + npmversion));
+							var dir = path.resolve(pluginsdir, (npmname + '@' + npmversion));
 							
-							if( fs.existsSync(targetdir) ) rmdirRecursive(targetdir);
-							fs.renameSync(downloaded, targetdir);
+							if( fs.existsSync(dir) ) rmdirRecursive(dir);
+							fs.renameSync(downloaded, dir);
 													
 							var info = {
 								name: npmname,
 								version: npmversion,
-								from: identifier
+								from: identifier,
+								dir: dir
 							};
 							
 							if( !results ) {
@@ -305,11 +330,17 @@ var PluginManager = (function() {
 								};
 							} else {
 								results.installed.push(info);
-							}	
+							}
+							
+							// detect
+							var descriptor = new PluginDescriptor(self.app, dir);
+							if( !self.exists(descriptor.name, descriptor.version) ) {
+								self.add(descriptor.instantiate());
+							}
 							
 							callback();
-						} catch(error) {
-							return error('[' + identifier + '] npm install error:' + error.message);
+						} catch(err) {
+							return error('[' + identifier + '] npm install error: ' + err.message);
 						}
 					});
 				});
@@ -317,11 +348,12 @@ var PluginManager = (function() {
 		
 			q.drain = function() {
 				rmdirRecursive(tmpbase);
+				
 				fn(err, results);
 			};
 		
 			q.push({identifier: identifier}, function (err) {
-				if( err ) console.log('* error occured', err);
+				if( err ) return error('error occured:' + err);
 			});
 			
 			return this;
@@ -344,6 +376,9 @@ var PluginManager = (function() {
 				for(var i=0; i < plugins.length; i++) {
 					var plugin = plugins[i];
 					plugin.stop();
+					
+					this.drop(plugin);
+					
 					var dir = path.resolve(pluginsdir, plugin.id.toString());
 					rmdirRecursive(dir);
 					

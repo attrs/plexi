@@ -172,10 +172,7 @@ var Plugin = (function() {
 		readonly(this, 'stopper', stopper);
 		
 		readonly(this, 'start', function() {
-			if( this.isStarted() ) {
-				console.warn('already_started:' + this.id + ':' + this.version);
-				return false;
-			}
+			if( this.isStarted() ) return false;
 		
 			var dependencies = this.dependencies;
 			for(var name in dependencies) {

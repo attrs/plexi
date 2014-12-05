@@ -48,6 +48,33 @@ var rmdirRecursive = function(path) {
     }
 };
 
+function makeSaveReload(o, file, options) {
+	Object.defineProperty(o, 'save', {
+		value: function(fn) {
+			var data = JSON.stringify(this, null, '\t');
+			fs.writeFileSync(file, data, {encoding:'utf8'});
+			
+			if( options && options.save ) options.save.call(this, data);
+		},
+		enumerable: false,
+		configurable: false,
+		writable: false
+	});
+	
+	Object.defineProperty(o, 'reload', {
+		value: function(fn) {
+			var data = fs.readFileSync(file);
+			
+			var result;
+			if( options && options.reload ) result = options.reload.call(this, data);
+			result = result || data;
+		},
+		enumerable: false,
+		configurable: false,
+		writable: false
+	});
+}
+
 var Application = function(homedir, argv) {
 	if( !homedir ) throw new ApplicationError('missing home directory', homedir);
 	
@@ -82,15 +109,7 @@ var Application = function(homedir, argv) {
 	
 	var preferences, env, links;
 	
-	Object.defineProperty(manifest, 'save', {
-		value: function(fn) {
-			var data = JSON.stringify(this, null, '\t');
-			fs.writeFileSync(path.resolve(home, 'package.json'), data, {encoding:'utf8'});
-		},
-		enumerable: false,
-		configurable: false,
-		writable: false
-	});
+	makeSaveReload(manifest, path.resolve(home, 'package.json'));
 	
 	if( !argv.ignorelinks ) {
 		var linksfile = path.resolve(home, '.plexilinks');
@@ -103,8 +122,10 @@ var Application = function(homedir, argv) {
 					links = [];
 					for(var i=0; i < links_array.length; i++) {
 						var link = links_array[i];
-						if( link ) link = link.trim();
-						if( link ) links.push(link);
+						
+						link = link.split('#')[0];
+						
+						if( link ) links.push(link.split('\t').join('').trim());
 					}
 					if( !links.length ) links = null;
 				}
@@ -250,6 +271,9 @@ Application.prototype = {
 		
 		return false;
 	},
+	unlink: function() {
+		
+	},
 	install: function(pkgs, fn) {				
 		var tasks = [];
 		var plugins = this.plugins;
@@ -284,7 +308,8 @@ Application.prototype = {
 	uninstall: function(pkgs, fn) {
 		var tasks = [];
 		var plugins = this.plugins;
-		pkgs.forEach(function(pkg) {			
+		pkgs.forEach(function(pkg) {
+			console.log('uninstall', pkg);
 			tasks.push((function(pkg) {
 				return function(callback) {
 					plugins.uninstall(pkg, function(err, result) {
@@ -340,6 +365,12 @@ Application.prototype = {
 	},
 	emit: function() {
 		this.ee.emit.apply(this.ee, arguments);
+		return this;
+	},
+	exit: function(fn) {
+		this.plugins.all().forEach(function(plugin) {
+			plugin.stop();
+		});
 		return this;
 	}
 };

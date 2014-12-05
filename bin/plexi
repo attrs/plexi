@@ -6,6 +6,7 @@ process.title = 'plexi';
 
 var path = require('path');
 var fs = require('fs');
+var colors = require('colors');
 var mkdirp = require('mkdirp');
 var Application = require('../src/Application.js');
 var argv = process.argv;
@@ -13,7 +14,7 @@ var argv = process.argv;
 // check package file
 var packagefile = path.resolve(process.cwd(), 'package.json');
 if( !fs.existsSync(packagefile) ) {
-	console.error('ERROR: package.json not found. npm init first.', process.cwd());
+	console.error(('ERROR: package.json not found. npm init first.').red, process.cwd());
 	return;
 }
 
@@ -40,11 +41,11 @@ var app = new Application(process.cwd(), {
 });
 
 var fn = function(err, results) {
-	if( err ) return console.error('error', err);
+	if( err ) return console.error(err.toString().red);
 };
 
 var savefn = function(err, results) {
-	if( err ) return console.error('error', err);
+	if( err ) return console.error(err.toString().red);
 	
 	if( cmd === 'install' && options.save ) {
 		if( !app.manifest.plexi ) app.manifest.plexi = {};
@@ -55,10 +56,8 @@ var savefn = function(err, results) {
 		});
 		app.manifest.save();
 	} else if( cmd === 'uninstall' && options.save ) {
-		console.log('results', results);
 		results.forEach(function(pkg) {
 			if( app.manifest.plexi && app.manifest.plexi.dependencies ) {
-				console.log('for delete', pkg, pkg.name);
 				delete app.manifest.plexi.dependencies[pkg.name];
 			}
 		});
@@ -67,6 +66,7 @@ var savefn = function(err, results) {
 };
 
 if( cmd === 'init' ) {
+	if( options.debug ) console.log('* init...', arg);
 	var activator = arg[0] || 'activator.js';
 	if( !app.manifest.plexi ) app.manifest.plexi = {};
 	app.manifest.plexi.activator = activator;
@@ -79,12 +79,12 @@ if( cmd === 'init' ) {
 		fs.writeFileSync(file, data, {encoding: 'utf8'});
 	}
 } else if( cmd === 'install' ) {
-	if( options.debug ) console.log('* plugin installing...', arg);
+	if( options.debug ) console.log('* installing...', arg);
 	
 	if( arg.length ) app.install(arg, savefn);
 	else app.installAll(fn);
 } else if( cmd === 'uninstall' ) {
-	if( options.debug ) console.log('* plugin uninstalling...', arg);
+	if( options.debug ) console.log('* uninstalling...', arg);
 	
 	if( arg.length ) app.uninstall(arg, savefn);
 	else app.uninstallAll(fn);
@@ -106,7 +106,7 @@ if( cmd === 'init' ) {
 		app.installAll(fn);
 	});
 } else if( cmd === 'start' ) {
-	console.log('* starting...', options);
+	if( options.debug ) console.log('* starting...', options);
 	
 	app.start(options);
 	

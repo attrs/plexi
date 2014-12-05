@@ -110,8 +110,6 @@ CLInterface.prototype = {
 					}
 				}
 			} else if( cmd === 'ss' || cmd === 'status' ) {
-				if( !app ) return console.log('application not selected');
-
 				var table = new Table({
 					chars: { 'top': '' , 'top-mid': '' , 'top-left': '' , 'top-right': ''
 						, 'bottom': '' , 'bottom-mid': '' , 'bottom-left': '' , 'bottom-right': ''
@@ -134,6 +132,11 @@ CLInterface.prototype = {
 			} else if( cmd === 'start' || cmd === 's' ) {
 				if( !arg.length ) {
 					console.error('USAGE: "' + cmd + ' (index)"');
+				} else if( arg[0] === 'all' ) {
+					var plugins = app.plugins.all();
+					plugins.forEach(function(plugin) {
+						plugin.start();
+					});
 				} else {
 					var plugins = app.plugins.all();
 					var plugin = plugins[parseInt(arg[0])];
@@ -146,6 +149,11 @@ CLInterface.prototype = {
 			} else if( cmd === 'stop' || cmd === 'x' ) {
 				if( !arg.length ) {
 					console.error('USAGE: "' + cmd + ' (index)"');
+				} else if( arg[0] === 'all' ) {
+					var plugins = app.plugins.all();
+					plugins.forEach(function(plugin) {
+						plugin.stop();
+					});
 				} else {
 					var plugins = app.plugins.all();
 					var plugin = plugins[parseInt(arg[0])];
@@ -185,6 +193,50 @@ CLInterface.prototype = {
 					});
 					return;
 				}
+			} else if( cmd === 'find' || cmd === 'f' ) {
+				var table = new Table({
+					chars: { 'top': '' , 'top-mid': '' , 'top-left': '' , 'top-right': ''
+						, 'bottom': '' , 'bottom-mid': '' , 'bottom-left': '' , 'bottom-right': ''
+						, 'left': '' , 'left-mid': '' , 'mid': '' , 'mid-mid': ''
+						, 'right': '' , 'right-mid': '' , 'middle': ' ' },
+					 style: { compact : true, 'padding-left' : 1 }
+				});
+				
+				var name = arg[0];
+				var range = arg.splice(1).join(' ') || '*';
+				
+				var all = app.plugins.all();
+				var plugin = app.plugins.maxSatisfy(name, range);
+				if( plugin ) {
+					table.push([all.indexOf(plugin) + '  ', '' + plugin.status + '  ', plugin.name + '  ', plugin.version]);
+					console.log(table.toString());
+				} else {
+					console.log('not found');
+				}
+			} else if( cmd === 'finds' || cmd === 'ff' ) {
+				var table = new Table({
+					chars: { 'top': '' , 'top-mid': '' , 'top-left': '' , 'top-right': ''
+						, 'bottom': '' , 'bottom-mid': '' , 'bottom-left': '' , 'bottom-right': ''
+						, 'left': '' , 'left-mid': '' , 'mid': '' , 'mid-mid': ''
+						, 'right': '' , 'right-mid': '' , 'middle': ' ' },
+					 style: { compact : true, 'padding-left' : 1 }
+				});
+				
+				var name = arg[0];
+				var range = arg.splice(1).join(' ') || '*';
+				
+				var all = app.plugins.all();
+				var plugins = app.plugins.satisfies(name, range);
+				if( plugins && plugins.length > 0 ) {
+					for(var i=0; i < plugins.length; i++) {
+						var plugin = plugins[i];
+						
+						table.push([all.indexOf(plugin) + '  ', '' + plugin.status + '  ', plugin.name + '  ', plugin.version]);
+					}
+					console.log(table.toString());
+				} else {
+					console.log('not found');
+				}
 			} else if( cmd === 'help' || cmd === 'h' || cmd === '?' ) {
 				var table = new Table({
 					chars: { 'top': '' , 'top-mid': '' , 'top-left': '' , 'top-right': ''
@@ -197,19 +249,23 @@ CLInterface.prototype = {
 				table.push(['profile, p', 'show system profile']);
 				table.push(['status, ss', 'show plugin status list']);
 				table.push(['start {index}', 'start plugin']);
+				table.push(['start all', 'start all plugins']);
 				table.push(['stop {index}', 'stop plugin']);
 				table.push(['stop all', 'stop all plugins']);
+				table.push(['find, f {name} [{version}]', 'search for a matching plugin']);
+				table.push(['finds, ff {name} [{version}]', 'search for all matching plugin']);
 				table.push(['install (name)[@(version)] || (git or file url)', 'install new plugin']);
 				table.push(['uninstall (name)[@(version)]', 'uninstall selected plugin']);
 				table.push(['quit, q', 'quit process']);
 				table.push(['help, h, ?', 'help']);
 				console.log(table.toString());
 			} else if ( cmd === 'quit' || cmd === 'q' ) {
-				setTimeout(function () {
-					process.exit(0);
-				}, 100);
+				var plugins = app.plugins.all();
+				plugins.forEach(function(plugin) {
+					plugin.stop();
+				});
 				
-				process.kill(process.pid, 'SIGHUP');
+				process.exit(0);
 			} else if( cmd ) {
 				console.log('"' + cmd + '" is unknown command.');
 			}
