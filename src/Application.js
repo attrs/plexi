@@ -367,7 +367,7 @@ Application.prototype = {
 		this.ee.emit.apply(this.ee, arguments);
 		return this;
 	},
-	exit: function(fn) {
+	stop: function() {
 		this.plugins.all().forEach(function(plugin) {
 			plugin.stop();
 		});

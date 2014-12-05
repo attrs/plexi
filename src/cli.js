@@ -260,11 +260,7 @@ CLInterface.prototype = {
 				table.push(['help, h, ?', 'help']);
 				console.log(table.toString());
 			} else if ( cmd === 'quit' || cmd === 'q' ) {
-				var plugins = app.plugins.all();
-				plugins.forEach(function(plugin) {
-					plugin.stop();
-				});
-				
+				app.stop();				
 				process.exit(0);
 			} else if( cmd ) {
 				console.log('"' + cmd + '" is unknown command.');

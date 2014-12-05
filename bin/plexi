@@ -65,6 +65,11 @@ var savefn = function(err, results) {
 	}
 };
 
+process.on('SIGINT', function () {
+	app.stop();	
+	process.exit();
+});
+
 if( cmd === 'init' ) {
 	if( options.debug ) console.log('* init...', arg);
 	var activator = arg[0] || 'activator.js';
