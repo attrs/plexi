@@ -12,7 +12,7 @@
 	},
 	"plexi": {
 		"dependencies": {
-			"plexi.mongodb": "*"
+			"c": "*"
 		}
 	}
 }

@@ -292,7 +292,7 @@ var PluginDescriptor = (function() {
 		if( !application ) throw new ApplicationError('illegal_argument:application', application);
 		if( !dir || typeof(dir) !== 'string' ) throw new ApplicationError('illegal_argument:dir', dir);
 		
-		dir = path.normalize(dir);
+		dir = path.normalize(path.resolve(application.home, dir));
 		
 		var packagefile = path.resolve(dir, 'package.json');	
 		var manifest = require(packagefile);

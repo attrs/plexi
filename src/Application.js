@@ -83,7 +83,7 @@ var Application = function(homedir, argv) {
 	argv = argv || {};
 	if( argv.debug ) this.debug = true;
 	
-	var home = this.home = path.normalize(homedir);
+	var home = this.home = path.normalize(path.resolve(process.cwd(), homedir));
 	var manifest = require(path.resolve(home, 'package.json'));
 	var plexipkg = require('../package.json');
 	var plexi = manifest.plexi || {};
@@ -202,7 +202,7 @@ var Application = function(homedir, argv) {
 	var links = this.links;
 	if( links ) {
 		for(var i=0; i < links.length; i++) {
-			var link = links[i] = path.normalize(links[i]);
+			var link = links[i] = path.normalize(path.resolve(process.cwd(), links[i]));
 			if( link && fs.existsSync(link) && fs.statSync(link).isDirectory() ) {
 				var descriptor = new PluginDescriptor(this, link);
 				if( !this.plugins.exists(descriptor.name, descriptor.version) ) {
@@ -243,7 +243,7 @@ var Application = function(homedir, argv) {
 // static
 Application.instance = function(file) {
 	if( !file ) file = process.cwd();
-	file = path.normalize(file);
+	file = path.normalize(path.resolve(process.cwd(), file));
 	var app = instances[file];
 	if( app ) return app;
 		
@@ -325,7 +325,7 @@ Application.prototype = {
 	unlink: function(link) {
 		if( !link || typeof(link) !== 'string' ) return false;
 		
-		link = path.normalize(link);
+		link = path.normalize(path.resolve(this.home, link));
 		var links = this.links;
 		var plugins = this.plugins.all();
 		if( !~links.indexOf(link) ) return false;
