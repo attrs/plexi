@@ -75,38 +75,20 @@ function makeSaveReload(o, file, options) {
 	});
 }
 
+var instances = [];
+
 var Application = function(homedir, argv) {
-	if( !homedir ) throw new ApplicationError('missing home directory', homedir);
-	
+	if( !homedir || typeof(homedir) !== 'string' ) throw new ApplicationError('missing or illegal home directory', homedir);
+		
 	argv = argv || {};
 	if( argv.debug ) this.debug = true;
 	
-	this.ee = new EventEmitter();
-	
-	if( this.debug ) {
-		this.on('detected', function(plugin) {
-			console.log('* [' + plugin.id + '] plugin detected!');
-		}).on('bound', function(plugin) {
-			console.log('* [' + plugin.id + '] plugin bound!');
-		}).on('started', function(plugin) {
-			console.log('* [' + plugin.id + '] plugin started!');
-		}).on('stopped', function(plugin) {
-			console.log('* [' + plugin.id + '] plugin stopped!');
-		}).on('detect-error', function(plugin) {
-			console.log('* [' + plugin.id + '] plugin error!');
-		}).on('require', function(name, plugin, caller, exports) {
-			console.log('* [' + caller.id + '] plugin require "' + name + '" [' + plugin.id + ']');
-			console.log('\texports: ', exports);
-		});
-	}
-	
-	var home = this.home = homedir;
+	var home = this.home = path.normalize(homedir);
 	var manifest = require(path.resolve(home, 'package.json'));
 	var plexipkg = require('../package.json');
 	var plexi = manifest.plexi || {};
 	var dependencies = plexi.dependencies || {};
 	var version = plexipkg.version;
-	
 	var preferences, env, links;
 	
 	makeSaveReload(manifest, path.resolve(home, 'package.json'));
@@ -134,14 +116,11 @@ var Application = function(homedir, argv) {
 	}
 	
 	// read preference file
-	if( true ) {		
-		var pref_js_file = path.resolve(home, 'plexi.js');
-		var pref_json_file = path.resolve(home, 'plexi.json');
+	if( true ) {
+		var preference_file = path.resolve(home, 'plexi.json');
 		
-		if( fs.existsSync(pref_js_file) && fs.statSync(pref_js_file).isFile() ) {
-			preferences = require(pref_js_file);
-		} else if( fs.existsSync(pref_json_file) && fs.statSync(pref_json_file).isFile() ) {
-			preferences = require(pref_json_file);
+		if( fs.existsSync(preference_file) && fs.statSync(preference_file).isFile() ) {
+			preferences = require(preference_file);
 		} else {
 			preferences = {};
 		}
@@ -150,12 +129,9 @@ var Application = function(homedir, argv) {
 	// read env
 	env = preferences.env || {};
 	
-	this.PLUGINS_DIR = path.resolve(home, env['plugins.dir'] || 'plexi_modules');
+	this.PLUGIN_DIR = path.resolve(home, env['plugin.dir'] || 'plexi_modules');
 	this.WORKSPACE_DIR = path.resolve(home, env['workspace.dir'] || 'workspace');
-	this.LOG_DIR = path.resolve(home, env['log.dir'] || 'logs');
-	
-	//if( !fs.existsSync(this.PLUGINS_DIR) ) fs.mkdirSync(this.PLUGINS_DIR);
-	//if( !fs.existsSync(this.WORKSPACE_DIR) ) fs.mkdirSync(this.WORKSPACE_DIR);
+	this.LOG_DIR = env['log.dir'] ? path.resolve(home, env['log.dir']) : path.resolve(this.WORKSPACE_DIR, 'logs');
 
 	// read properties
 	var properties = {};
@@ -176,7 +152,7 @@ var Application = function(homedir, argv) {
 	properties['home'] = this.home;
 	properties['plexi.version'] = version;
 	properties['workspace.dir'] = this.WORKSPACE_DIR;
-	properties['plugins.dir'] = this.PLUGINS_DIR;
+	properties['plugin.dir'] = this.PLUGIN_DIR;
 	properties['log.dir'] = this.LOG_DIR;
 	
 	try {
@@ -191,8 +167,28 @@ var Application = function(homedir, argv) {
 	} catch(err) {
 		throw new ApplicationError('application_load_error:config_file_parse:' + pref_file + ':' + err.message, err);
 	}
+	
+	// init event emitter
+	this.ee = new EventEmitter();	
+	if( this.debug ) {
+		this.on('detected', function(plugin) {
+			console.log('* [' + plugin.id + '] plugin detected!');
+		}).on('bound', function(plugin) {
+			console.log('* [' + plugin.id + '] plugin bound!');
+		}).on('started', function(plugin) {
+			console.log('* [' + plugin.id + '] plugin started!');
+		}).on('stopped', function(plugin) {
+			console.log('* [' + plugin.id + '] plugin stopped!');
+		}).on('detect-error', function(plugin) {
+			console.log('* [' + plugin.id + '] plugin error!');
+		}).on('require', function(name, plugin, caller, exports) {
+			console.log('* [' + caller.id + '] plugin require "' + name + '" [' + plugin.id + ']');
+			console.log('\texports: ', exports);
+		});
+	}	
 
 	// setup instance attributes
+	this.version = version;
 	this.manifest = manifest;
 	this.links = links;
 	this.properties = properties;
@@ -206,7 +202,7 @@ var Application = function(homedir, argv) {
 	var links = this.links;
 	if( links ) {
 		for(var i=0; i < links.length; i++) {
-			var link = links[i];
+			var link = links[i] = path.normalize(links[i]);
 			if( link && fs.existsSync(link) && fs.statSync(link).isDirectory() ) {
 				var descriptor = new PluginDescriptor(this, link);
 				if( !this.plugins.exists(descriptor.name, descriptor.version) ) {
@@ -220,16 +216,16 @@ var Application = function(homedir, argv) {
 		}
 	}
 	
-	// plugins.dir 에서 활성화
-	if( fs.existsSync(this.PLUGINS_DIR) ) {
-		var files = fs.readdirSync(this.PLUGINS_DIR);
+	// plugin.dir 에서 활성화
+	if( fs.existsSync(this.PLUGIN_DIR) ) {
+		var files = fs.readdirSync(this.PLUGIN_DIR);
 
 		for(var i=0; i < files.length; i++) {
 			var dirname = files[i];
 		
 			if( dirname.startsWith('-') || dirname.startsWith('.') ) continue;
 
-			var dir = path.resolve(this.PLUGINS_DIR, dirname);
+			var dir = path.resolve(this.PLUGIN_DIR, dirname);
 			if( fs.statSync(dir).isDirectory() ) {
 				var descriptor = new PluginDescriptor(this, dir);
 				if( this.plugins.exists(descriptor.name, descriptor.version) ) {
@@ -240,8 +236,60 @@ var Application = function(homedir, argv) {
 			}
 		}
 	}
+	
+	instances.push(this);
 };
 
+// static
+Application.instance = function(file) {
+	if( !file ) file = process.cwd();
+	file = path.normalize(file);
+	var app = instances[file];
+	if( app ) return app;
+		
+	var instance;	
+	instances.sort().reverse().every(function(item) {
+		if( file.startsWith(item.home) ) {
+			instance = item;
+			return false;
+		}
+		return true;
+	});
+	
+	return instance;
+};
+
+/*
+(function() {
+	function test(file) {
+		var instances = ['/a/b/c/d', '/a/b/c', '/a/b/c/3', '/a/b', '/a/b/c/1', '/b/e/d'];
+		
+		console.log(instances);
+
+		var instance;
+		instances.sort().reverse().every(function(item) {
+			console.log('current', item);
+			if( file.startsWith(item) ) {
+				instance = item;
+				return false;
+			}
+			return true;
+		});
+		return instance;
+	}
+	console.log('/a/b/c/d/e/f', test('/a/b/c/d/e/f'));
+	console.log('/a/b/c/1/', test('/a/b/c/1/'));
+	console.log('/a/b/c/1/b', test('/a/b/c/1/b'));
+	console.log('/a/b/c/3', test('/a/b/c/3'));
+	console.log('/b/e/d/e/f', test('/b/e/d/e/f'));
+})();
+*/
+
+Application.instances = function() {
+	return instances.slice();
+}
+
+// instance
 Application.prototype = {
 	path: function(f) {
 		return path.join(this.home, f);
@@ -261,7 +309,10 @@ Application.prototype = {
 		if( link && fs.existsSync(link) && fs.statSync(link).isDirectory() ) {
 			var descriptor = new PluginDescriptor(this, link);
 			if( !this.plugins.exists(descriptor.name, descriptor.version) ) {
-				this.plugins.add(descriptor.instantiate());
+				var plugin = descriptor.instantiate();
+				this.plugins.add(plugin);
+				this.links.push(descriptor.dir);
+				return plugin;
 			} else {
 				console.warn('[WARN] "' + descriptor.id + '" already exists, ignored.', link);				
 			}
@@ -271,8 +322,27 @@ Application.prototype = {
 		
 		return false;
 	},
-	unlink: function() {
+	unlink: function(link) {
+		if( !link || typeof(link) !== 'string' ) return false;
 		
+		link = path.normalize(link);
+		var links = this.links;
+		var plugins = this.plugins.all();
+		if( !~links.indexOf(link) ) return false;
+		
+		for(var index;(index = links.indexOf(link)) >= 0;) {
+			links.splice(index, 1);
+		}
+		
+		var matched, plugins = this.plugins;
+		plugins.all().forEach(function(plugin) {
+			if( plugin.dir === link ) {
+				matched = plugin;
+				plugins.drop(plugin);
+			}
+		});
+		
+		return matched || false;
 	},
 	install: function(pkgs, fn) {				
 		var tasks = [];

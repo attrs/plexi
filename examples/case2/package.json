@@ -8,7 +8,7 @@
 		"start": "node ./node_modules/plexi/bin/plexi start"
 	},
 	"dependencies": {
-		"plexi": "*"
+		"plexi": "^0.2"
 	},
 	"plexi": {
 		"dependencies": {

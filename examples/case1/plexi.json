@@ -1,6 +1,6 @@
 {
 	"env": {
-		"plugins.dir": "plugins"
+		"plugin.dir": "plugins"
 	},
 	"preferences": {
 		"a": {

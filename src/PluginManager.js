@@ -84,23 +84,29 @@ var PluginGroup = (function() {
 			}
 		}
 
-		return arg;
+		return arg.length ? arg : null;
 	};
 	
 	fn.latest = function() {
 		return this[0];
 	};
 	
-	fn.drop = function(plugin) {
-		for(var index;(index = this.indexOf(plugin)) >= 0;) {
-			this.splice(index, 1);
-		}
+	fn.drop = function(version) {
+		var plugins = ( version instanceof Plugin ) ? [version] : this.satisfies(version);
+		if( !plugins || !plugins.length ) return false;
+		
+		var self = this;
+		plugins.forEach(function(plugin) {
+			for(var index;(index = self.indexOf(plugin)) >= 0;) {
+				self.splice(index, 1);
+			}
+		});
 		
 		this.sort(function compare(a, b) {
 			return semver.compare(b.version, a.version);
 		});
 		
-		return this;
+		return plugins;
 	};
 	
 	fn.push = function(plugin) {
@@ -172,38 +178,35 @@ var PluginManager = (function() {
 			this.app.emit('bound', plugin);
 			return this;
 		},
-		drop: function(plugin) {
-			var group = this.groups[plugin.name];
-			if( group ) group.drop(plugin);
-			return this;
+		drop: function(name, version) {
+			if( name instanceof Plugin ) {
+				version = name.version;
+				name = name.name;
+			}
+			
+			var group = this.groups[name];
+			if( !group ) return null;			
+			return group.drop(version || '*');
 		},
 		get: function(name, version) {						
 			var group = this.groups[name];
-			if( !group ) return null;//console.error('plugin not found', name);
+			if( !group ) return null;
 			
 			return group.get(version);
 		},
 		maxSatisfy: function(name, version) {						
 			var group = this.groups[name];
-			if( !group ) return null;//console.error('plugin not found', name);
+			if( !group ) return null;
 			
 			return group.maxSatisfy(version || '*');
 		},
 		satisfies: function(name, version) {						
 			var group = this.groups[name];
-			if( !group ) return [];//console.error('plugin not found', name);
+			if( !group ) return null;
 			
 			return group.satisfies(version || '*');
 		},
 		exists: function(name, version) {
-			var pos;
-			if( ~(pos = name.indexOf('@')) ) {
-				version = name.substring(pos + 1);
-				name = name.substring(0, pos);
-				
-				console.log('^^^', name, version);
-			}
-				
 			var group = this.groups[name];
 			if( !group ) return false;			
 			return group.get(version);
@@ -254,8 +257,8 @@ var PluginManager = (function() {
 			if( fn && typeof(fn) !== 'function' ) throw new ApplicationError('illegal_arguments(fn)', fn);
 			if( !fn ) fn = function() {}
 		
-			var pluginsdir = this.app.PLUGINS_DIR;
-			var tmpbase = path.resolve(this.app.PLUGINS_DIR, '.temp');
+			var plugindir = this.app.PLUGIN_DIR;
+			var tmpbase = path.resolve(this.app.PLUGIN_DIR, '.temp');
 		
 			rmdirRecursive(tmpbase);
 		
@@ -266,6 +269,11 @@ var PluginManager = (function() {
 				rmdirRecursive(tmpbase);
 				fn(err);
 			};
+			
+			var plexiversion = semver.parse(this.app.version);
+			plexiversion = [plexiversion.major, plexiversion.minor, plexiversion.patch].join('.');
+			
+			//console.log(plexiversion, semver.satisfies('0.1.2', '~0.1.0'));
 			
 			var q = async.queue(function (task, callback) {
 				var identifier = task.identifier;
@@ -288,12 +296,21 @@ var PluginManager = (function() {
 							var npmname = pkg.name;
 							var npmversion = pkg.version;
 							var npmplexi = pkg.plexi;
-					
+							var pv = (pkg.dependencies && pkg.dependencies.plexi) || '*';
+							
+							if( pv.toLowerCase() === 'latest' || ~pv.indexOf('/') || !pv.indexOf('file:') ) pv = '*';
+							
 							//console.log('* name', npmname);
 							//console.log('* version', npmversion);
 					
+							// check npm name & version
 							if( !npmname || !npmversion ) {
 								return error('[' + npmname + '@' + npmversion + '] package.json error(missing name or version)');
+							}
+							
+							// check is matches current plexi runtime version
+							if( !semver.satisfies(plexiversion, pv) ) {
+								console.warn(('[' + npmname + '@' + npmversion + '] may not be compatible with current plexi runtime "' + plexiversion + '"), but this package prefer "' + pv + '"').red);
 							}
 							
 							if( npmplexi && npmplexi.dependencies ) {
@@ -309,7 +326,7 @@ var PluginManager = (function() {
 								}
 							}
 					
-							var dir = path.resolve(pluginsdir, (npmname + '@' + npmversion));
+							var dir = path.resolve(plugindir, (npmname + '@' + npmversion));
 							
 							if( fs.existsSync(dir) ) rmdirRecursive(dir);
 							fs.renameSync(downloaded, dir);
@@ -363,8 +380,8 @@ var PluginManager = (function() {
 			
 			identifier = PluginIdentifier.parse(identifier);
 			
-			var pluginsdir = this.app.PLUGINS_DIR;
-			var plugins = this.satisfies(identifier.name, identifier.version);
+			var plugindir = this.app.PLUGIN_DIR;
+			var plugins = this.drop(identifier.name, identifier.version);
 			
 			var results = {
 				name: identifier.name,
@@ -375,11 +392,9 @@ var PluginManager = (function() {
 			if( plugins ) {
 				for(var i=0; i < plugins.length; i++) {
 					var plugin = plugins[i];
-					plugin.stop();
 					
-					this.drop(plugin);
-					
-					var dir = path.resolve(pluginsdir, plugin.id.toString());
+					// remove physically					
+					var dir = path.resolve(plugindir, plugin.id.toString());
 					rmdirRecursive(dir);
 					
 					results.uninstalled.push({

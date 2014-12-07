@@ -1,6 +1,11 @@
-var plexi = require('plexi');
-var app = plexi.current();
+var plexi = require('../../');
+var app = plexi.get(__dirname);
 
-console.log('this is main.js. current plexi is ', app);
+if( app ) {
+	console.log('this is main.js. plexi is running on', app.home);
+} else {
+	console.log('not found plexi instance');
+}
+
 
 module.exports = app;

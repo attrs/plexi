@@ -60,8 +60,8 @@ PluginContext.prototype = {
 		var current = this.plugin;
 		
 		var version = current.dependencies[name];
-		if( !version ) throw new ApplicationError('not found dependency:' + name);
-		if( !semver.valid(version) ) version = '*';
+		if( !version || version.toLowerCase() === 'latest' || ~version.indexOf('/') || version.indexOf('file:') ) version = '*';
+		if( !semver.valid(version) && !semver.validRange(version) ) throw new ApplicationError('invalid version range(' + current.dir + '/package.json/plexi.dependencies):' + version);
 		var plugin = this.application.plugins.maxSatisfy(name, version);
 				
 		if( plugin ) {
@@ -73,7 +73,7 @@ PluginContext.prototype = {
 				plugin.start();
 			}
 
-			var exports = plugin.exports || {};			
+			var exports = plugin.exports || {};
 			var result = {};
 			
 			for(var key in exports) {
@@ -94,7 +94,7 @@ PluginContext.prototype = {
 
 			return result;
 		} else {
-			throw new ApplicationError('[' + current.id + ']: dependency plugin [' + name + '] not found');
+			throw new ApplicationError('[' + current.id + ']: dependency plugin [' + name + '@' + version + '] not found');
 		}
 	}
 };
@@ -291,6 +291,8 @@ var PluginDescriptor = (function() {
 	function PluginDescriptor(application, dir) {
 		if( !application ) throw new ApplicationError('illegal_argument:application', application);
 		if( !dir || typeof(dir) !== 'string' ) throw new ApplicationError('illegal_argument:dir', dir);
+		
+		dir = path.normalize(dir);
 		
 		var packagefile = path.resolve(dir, 'package.json');	
 		var manifest = require(packagefile);

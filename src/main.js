@@ -5,14 +5,12 @@ var PluginManager = require('./PluginManager.js');
 var Workspace = require('./Workspace.js');
 var ApplicationError = require('./ApplicationError.js');
 
-var app;
 module.exports = {
 	start: function(home_dir, argv) {
-		app = new Application(home_dir || process.cwd(), argv).start();
-		return app;
+		return new Application(home_dir || process.cwd(), argv).start();
 	},
-	current: function() {
-		return app;
+	get: function(dir) {
+		return Application.instance(dir || process.cwd());
 	},
 	Application: Application,
 	Plugin: Plugin,

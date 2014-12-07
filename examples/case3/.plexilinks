@@ -1,6 +1,6 @@
 # write your local plexi package for symbolic link
 
-/Volumes/repository/git/attrs/plexi.http
+# /Volumes/repository/git/attrs/plexi.http
 /Volumes/repository/git/attrs/plexi.auth
 /Volumes/repository/git/attrs/plexi.workbench
 /Volumes/repository/git/attrs/plexi.monitor

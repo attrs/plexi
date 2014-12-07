@@ -71,7 +71,7 @@ CLInterface.prototype = {
 					table.push(['nodejs  ', process.version]);
 					table.push(['plexi.version  ', app.properties['plexi.version']]);
 					table.push(['home  ', app.home]);
-					table.push(['plugins.dir  ', app.PLUGINS_DIR]);
+					table.push(['plugin.dir  ', app.PLUGIN_DIR]);
 					table.push(['workspace.dir  ', app.WORKSPACE_DIR]);
 					table.push(['log.dir  ', app.LOG_DIR]);
 					table.push(['host plugin  ', host && (host.id.toString() + ' [' + host.dir + ']')]);
@@ -164,9 +164,8 @@ CLInterface.prototype = {
 					}
 				}
 			} else if( cmd === 'install' ) {
-				console.error('USAGE: "' + cmd + ' (name)[@(version)] || (git or file url)"');
 				if( !arg.length ) {
-					console.error('USAGE: "' + cmd + ' (index)"');
+					console.error('USAGE: "' + cmd + ' (name)[@(version)] || (git or file url)"');
 				} else {
 					var url = arg[0];
 					progressing = true;
@@ -178,10 +177,47 @@ CLInterface.prototype = {
 					});
 					return;
 				}
-			} else if( cmd === 'uninstall' ) {
-				console.error('USAGE: "' + cmd + ' (name)[@(version)]"');
+			} else if( cmd === 'links' ) {
+				var table = new Table({
+					chars: { 'top': '' , 'top-mid': '' , 'top-left': '' , 'top-right': ''
+						, 'bottom': '' , 'bottom-mid': '' , 'bottom-left': '' , 'bottom-right': ''
+						, 'left': '' , 'left-mid': '' , 'mid': '' , 'mid-mid': ''
+						, 'right': '' , 'right-mid': '' , 'middle': ' ' },
+					 style: { compact : true, 'padding-left' : 1 }
+				});
+
+				var links = app.links;
+				if( links && links.length > 0 ) {
+					for(var i=0; i < links.length; i++) {
+						var link = links[i];
+						
+						table.push([link]);
+					}
+					console.log(table.toString());
+				} else {
+					console.log('empty!');
+				}
+			} else if( cmd === 'link' ) {
 				if( !arg.length ) {
-					console.error('USAGE: "' + cmd + ' (index)"');
+					console.error('USAGE: "' + cmd + ' (path)"');
+				} else {
+					var file = arg[0];
+					var plugin = app.link(file);
+					if( plugin ) console.log('' + plugin.id + ' linked');
+					else console.log('link fail', file);
+				}
+			} else if( cmd === 'unlink' ) {
+				if( !arg.length ) {
+					console.error('USAGE: "' + cmd + ' (path)"');
+				} else {
+					var file = arg[0];
+					var plugin = app.unlink(file);
+					if( plugin ) console.log('' + plugin.id + ' unlinked');
+					else console.log('not found linked plugin', file);
+				}
+			} else if( cmd === 'uninstall' ) {
+				if( !arg.length ) {
+					console.error('USAGE: "' + cmd + ' (name)[@(version)]"');
 				} else {
 					var url = arg[0];
 					progressing = true;
@@ -252,6 +288,9 @@ CLInterface.prototype = {
 				table.push(['start all', 'start all plugins']);
 				table.push(['stop {index}', 'stop plugin']);
 				table.push(['stop all', 'stop all plugins']);
+				table.push(['links', 'show all links']);
+				table.push(['link (path)', 'link from filesystem']);
+				table.push(['unlink (path)', 'unlink the linked plugin']);
 				table.push(['find, f {name} [{version}]', 'search for a matching plugin']);
 				table.push(['finds, ff {name} [{version}]', 'search for all matching plugin']);
 				table.push(['install (name)[@(version)] || (git or file url)', 'install new plugin']);
