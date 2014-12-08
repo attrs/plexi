@@ -1,8 +1,5 @@
-[![NPM Version][npm-image]][npm-url]
-[![NPM Downloads][downloads-image]][downloads-url]
-[![Build Status][travis-image-flat]][travis-url]
+# plexi [![NPM Version][npm-image]][npm-url] [![NPM Downloads][downloads-image]][downloads-url] [![Build Status][travis-image-flat]][travis-url]
 
-# plexi
 
 Plexi is a plugin system for nodejs. Helps to make a horizontal plugin architecture.
 
