@@ -1,5 +1,9 @@
-# plexi [![NPM Version][npm-image]][npm-url] [![NPM Downloads][downloads-image]][downloads-url] [![Build Status][travis-image-flat]][travis-url]
+# plexi
 
+[![NPM Version][npm-image]][npm-url]
+[![NPM Downloads][downloads-image]][downloads-url]
+[![Build Status][travis-image-flat]][travis-url]
+[![Gratipay][gratipay-image]][gratipay-url]
 
 Plexi is a plugin system for nodejs. Helps to make a horizontal plugin architecture.
 
@@ -116,3 +120,5 @@ plexi$ q
 [travis-image-flat]: https://img.shields.io/travis/attrs/plexi.svg?style=flat
 [travis-image]: https://travis-ci.org/attrs/plexi.svg?branch=master
 [travis-url]: https://travis-ci.org/attrs/plexi
+[gratipay-image]: https://img.shields.io/gratipay/teamattrs.svg?style=flat
+[gratipay-url]: https://gratipay.com/teamattrs/
