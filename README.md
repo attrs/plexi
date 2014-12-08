@@ -1,5 +1,8 @@
-# plexi [![Build Status](https://travis-ci.org/attrs/plexi.svg?branch=master)](https://travis-ci.org/attrs/plexi)
+# plexi
 
+[![NPM Version][npm-image]][npm-url]
+[![NPM Downloads][downloads-image]][downloads-url]
+[![Build Status][travis-image-flat]][travis-url]
 
 Plexi is a plugin system for nodejs. Helps to make a horizontal plugin architecture.
 
@@ -106,3 +109,11 @@ plexi$ q
 ### License
 
   [MIT](LICENSE)
+ 
+
+
+[npm-image]: https://img.shields.io/npm/v/plexi.svg?style=flat
+[npm-url]: https://npmjs.org/package/plexi
+[travis-image-flat]: https://img.shields.io/travis/attrs/plexi.svg?style=flat
+[travis-image]: https://travis-ci.org/attrs/plexi.svg?branch=master
+[travis-url]: https://travis-ci.org/attrs/plexi

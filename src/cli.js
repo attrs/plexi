@@ -109,6 +109,8 @@ CLInterface.prototype = {
 						console.log('input plugin index (Please check with "status" command) [0-' + (plugins.length - 1) + ']');
 					}
 				}
+			} else if( cmd === 'r' || cmd === 'registry' ) {
+				console.log(app.registry);
 			} else if( cmd === 'ss' || cmd === 'status' ) {
 				var table = new Table({
 					chars: { 'top': '' , 'top-mid': '' , 'top-left': '' , 'top-right': ''
@@ -284,6 +286,7 @@ CLInterface.prototype = {
 				
 				table.push(['profile, p', 'show system profile']);
 				table.push(['status, ss', 'show plugin status list']);
+				table.push(['registry, r', 'show registry']);
 				table.push(['start {index}', 'start plugin']);
 				table.push(['start all', 'start all plugins']);
 				table.push(['stop {index}', 'stop plugin']);

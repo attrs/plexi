@@ -1,5 +1,5 @@
 var plexi = require('../../');
-var app = plexi.get(__dirname);
+var app = plexi.instance(__dirname);
 
 if( app ) {
 	console.log('this is main.js. plexi is running on', app.home);

@@ -34,13 +34,15 @@ var PluginContext = function PluginContext(plugin) {
 	readonly(this, 'plugin', plugin);
 	
 	readonly(this, 'descriptor', plugin.descriptor);
+	readonly(this, 'registry', plugin.application.registry);
+	readonly(this, 'application', plugin.application);
+	readonly(this, 'home', plugin.home);
 	readonly(this, 'dir', plugin.dir);
 	readonly(this, 'id', plugin.id);
 	readonly(this, 'name', plugin.name);
 	readonly(this, 'logger', plugin.logger);
 	readonly(this, 'version', plugin.version);
 	readonly(this, 'manifest', plugin.manifest);
-	readonly(this, 'application', plugin.application);
 	readonly(this, 'activator', plugin.activator);
 	readonly(this, 'dependencies', plugin.dependencies);
 	readonly(this, 'workspace', plugin.workspace);
@@ -109,6 +111,7 @@ var Plugin = (function() {
 		var app = descriptor.application;
 		
 		readonly(this, 'application', descriptor.application);
+		readonly(this, 'home', descriptor.application.home);
 		readonly(this, 'descriptor', descriptor);
 		readonly(this, 'dir', descriptor.dir);
 		readonly(this, 'id', descriptor.id);

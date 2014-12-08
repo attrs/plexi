@@ -8,8 +8,11 @@ var Plugin = require('./Plugin.js').Plugin;
 var PluginIdentifier = require('./Plugin.js').PluginIdentifier;
 var PluginDescriptor = require('./Plugin.js').PluginDescriptor;
 var PluginManager = require('./PluginManager.js');
+var Logger = require('./Logger.js');
+var Workspace = require('./Workspace.js');
 var ApplicationError = require('./ApplicationError.js');
 var cli = require('./cli.js');
+var commands = require('./commands.js');
 
 if( !String.prototype.startsWith ) {
 	String.prototype.startsWith = function(s) {
@@ -32,7 +35,7 @@ if( !String.prototype.trim ) {
 	};
 }
 
-var rmdirRecursive = function(path) {
+function rmdirRecursive(path) {
     var files = [];
     if( fs.existsSync(path) ) {
         files = fs.readdirSync(path);
@@ -168,6 +171,61 @@ var Application = function(homedir, argv) {
 		throw new ApplicationError('application_load_error:config_file_parse:' + pref_file + ':' + err.message, err);
 	}
 	
+	// init commands
+	this.commands = commands(this);
+	
+	// init registry
+	var registry = {
+		types: {},
+		properties: {}
+	};
+		
+	Object.defineProperty(registry.types, 'create', {
+		value: function(typename, checker) {
+			if( !typename || typeof(typename) !== 'string' ) throw new TypeError('illegal type name:' + typename);
+			if( typeof(checker) !== 'function' ) throw new TypeError('illegal type checker:' + checker);
+			
+			this[typename] = {};
+			Object.defineProperty(this[typename], 'add', {
+				value: function(name, object) {
+					if( name && typeof(name) === 'string' && checker(object) ) {
+						this[name] = object;
+					} else {
+						console.error(('[registry] illegal binding: ' + name + '.' + name).red, object);
+					}
+				},
+				enumerable: false,
+				configurable: false,
+				writable: false
+			});
+			
+			// Available in nodejs >= 0.11.13
+			if( Object.observe ) {
+				Object.observe(this[typename], function(changes) {
+					// [{name: 'baz', object: <obj>, type: 'add'}]
+					changes.forEach(function(change) {
+						if( change.type === 'add' || change.type === 'update' ) {
+							if( !change.name || !checker(change.object) ) {
+								console.error('illegal binding: registry.' + name + '.' + change.name, change.object);
+								delete this[typename][change.name];
+							}
+						}
+					});
+				});
+			}
+		},
+		enumerable: false,
+		configurable: false,
+		writable: false
+	});
+	
+	Object.defineProperty(this, 'registry', {
+		value: registry,
+		enumerable: true,
+		configurable: false,
+		writable: false
+	});
+	
 	// init event emitter
 	this.ee = new EventEmitter();	
 	if( this.debug ) {
@@ -185,7 +243,7 @@ var Application = function(homedir, argv) {
 			console.log('* [' + caller.id + '] plugin require "' + name + '" [' + plugin.id + ']');
 			console.log('\texports: ', exports);
 		});
-	}	
+	}
 
 	// setup instance attributes
 	this.version = version;
@@ -258,36 +316,6 @@ Application.instance = function(file) {
 	
 	return instance;
 };
-
-/*
-(function() {
-	function test(file) {
-		var instances = ['/a/b/c/d', '/a/b/c', '/a/b/c/3', '/a/b', '/a/b/c/1', '/b/e/d'];
-		
-		console.log(instances);
-
-		var instance;
-		instances.sort().reverse().every(function(item) {
-			console.log('current', item);
-			if( file.startsWith(item) ) {
-				instance = item;
-				return false;
-			}
-			return true;
-		});
-		return instance;
-	}
-	console.log('/a/b/c/d/e/f', test('/a/b/c/d/e/f'));
-	console.log('/a/b/c/1/', test('/a/b/c/1/'));
-	console.log('/a/b/c/1/b', test('/a/b/c/1/b'));
-	console.log('/a/b/c/3', test('/a/b/c/3'));
-	console.log('/b/e/d/e/f', test('/b/e/d/e/f'));
-})();
-*/
-
-Application.instances = function() {
-	return instances.slice();
-}
 
 // instance
 Application.prototype = {
@@ -446,9 +474,61 @@ Application.prototype = {
 };
 
 // static methods
+Application.instances = function() {
+	return instances.slice();
+}
+
 Application.parseIdentifier = function(identifier) {
 	return PluginIdentifier.parse(identifier);
 };
 
+Application.Plugin = Plugin;
+Application.PluginDescriptor = Plugin.PluginDescriptor;
+Application.PluginIdentifier = Plugin.PluginIdentifier;
+Application.PluginContext = Plugin.PluginContext;
+Application.PluginManager = PluginManager;
+Application.Logger = Logger;
+Application.Workspace = Workspace;
+Application.ApplicationError = ApplicationError;
 
 module.exports = Application;
+
+
+/*
+(function() {
+	function test(file) {
+		var instances = ['/a/b/c/d', '/a/b/c', '/a/b/c/3', '/a/b', '/a/b/c/1', '/b/e/d'];
+		
+		console.log(instances);
+
+		var instance;
+		instances.sort().reverse().every(function(item) {
+			console.log('current', item);
+			if( file.startsWith(item) ) {
+				instance = item;
+				return false;
+			}
+			return true;
+		});
+		return instance;
+	}
+	console.log('/a/b/c/d/e/f', test('/a/b/c/d/e/f'));
+	console.log('/a/b/c/1/', test('/a/b/c/1/'));
+	console.log('/a/b/c/1/b', test('/a/b/c/1/b'));
+	console.log('/a/b/c/3', test('/a/b/c/3'));
+	console.log('/b/e/d/e/f', test('/b/e/d/e/f'));
+})();
+*/
+
+/* Registry Usage
+// type host
+registry.types.create('launcher', function(type) {
+	console.log('type', type);
+	return true;
+});
+
+// type provider
+registry.types.launcher.add('mongo', {start:function() {}, stop: function() {}});
+or
+registry.types.launcher.mongo = {start:function() {}, stop: function() {}};
+*/
