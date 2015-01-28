@@ -48,7 +48,10 @@ var PluginGroup = (function() {
 	};
 	
 	fn.maxSatisfy = function(match) {
-		if( match === '*' ) return this.latest();
+		if( !match || ~match.indexOf('/') || match.indexOf('file:') ) version = '*';
+		if( !semver.valid(match) && !semver.validRange(match) ) throw new ApplicationError('invalid version range(' + this.name + '/package.json/plexi.dependencies):' + match);
+		
+		if( match.toLowerCase() === 'latest' || match === '*' ) return this.latest();
 		if( !match ) return null;
 		
 		for(var i=0; i < this.length; i++) {
@@ -67,6 +70,9 @@ var PluginGroup = (function() {
 	};
 	
 	fn.satisfies = function(match) {
+		if( !match || ~match.indexOf('/') || match.indexOf('file:') ) version = '*';
+		if( !semver.valid(match) && !semver.validRange(match) ) throw new ApplicationError('invalid version range(' + this.name + '/package.json/plexi.dependencies):' + match);
+		
 		if( match === '*' ) return this.slice();
 		if( match === 'latest' ) return [this.latest()];
 		if( !match ) return [];
@@ -194,7 +200,7 @@ var PluginManager = (function() {
 			
 			return group.get(version);
 		},
-		maxSatisfy: function(name, version) {						
+		maxSatisfy: function(name, version) {
 			var group = this.groups[name];
 			if( !group ) return null;
 			

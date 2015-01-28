@@ -28,7 +28,7 @@ CLInterface.prototype = {
 	start: function() {
 		var self = this;
 		
-		process.stdout.write('\nplexi$ ');
+		//process.stdout.write('\nplexi$ ');
 		process.stdin.resume();
 		process.stdin.setEncoding('utf-8');
 		

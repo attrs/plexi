@@ -7,7 +7,8 @@
 		"test": "node -e 'console.log(\"test\")'"
 	},
 	"bin": {
-		"plexi": "bin/plexi"
+		"plexi": "bin/plexi",
+		"plx": "bin/plexi"
 	},
 	"dependencies": {
 		"cli-table": "^0.3.1",

@@ -60,10 +60,7 @@ PluginContext.prototype = {
 	},
 	require: function(name) {
 		var current = this.plugin;
-		
 		var version = current.dependencies[name];
-		if( !version || version.toLowerCase() === 'latest' || ~version.indexOf('/') || version.indexOf('file:') ) version = '*';
-		if( !semver.valid(version) && !semver.validRange(version) ) throw new ApplicationError('invalid version range(' + current.dir + '/package.json/plexi.dependencies):' + version);
 		var plugin = this.application.plugins.maxSatisfy(name, version);
 				
 		if( plugin ) {
@@ -176,18 +173,35 @@ var Plugin = (function() {
 		
 		readonly(this, 'start', function() {
 			if( this.isStarted() ) return false;
+			status = Plugin.STATUS_STARTED;
 		
 			var dependencies = this.dependencies;
 			for(var name in dependencies) {
 				if( name === this.name ) continue;
-				this.ctx.require(name);
+				
+				var version = dependencies[name];
+				var plugin = app.plugins.maxSatisfy(name, version);				
+				if( !plugin ) {
+					status = Plugin.STATUS_ERROR;
+					throw new ApplicationError('[' + this.id + '] dependency error, not found matched plugin: [' + name + '@' + version + ']');
+				}
+				
+				if( plugin && !plugin.isStarted() ) {
+					try {
+						plugin.start();
+					} catch(err) {
+						console.error(err.message);
+						console.error(err.stack);
+						status = Plugin.STATUS_ERROR;		
+						return;
+					}
+				}
 			}
 		
 			exports = null;
 			var result = this.starter(this.ctx);
 			if( result !== null && result !== undefined ) exports = result;
-		
-			status = Plugin.STATUS_STARTED;
+
 			this.application.emit('started', this);
 			return true;
 		}, false);
