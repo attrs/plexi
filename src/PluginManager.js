@@ -25,7 +25,7 @@ var PluginGroup = (function() {
 	var fn = PluginGroup.prototype = [];
 
 	fn.get = function(match) {
-		if( !match || typeof(match) !== 'string' ) return null;
+		if( !match ) return this[0];
 		
 		match = semver.clean(match) || match;
 
@@ -191,13 +191,12 @@ var PluginManager = (function() {
 			}
 			
 			var group = this.groups[name];
-			if( !group ) return null;			
+			if( !group ) return null;
 			return group.drop(version || '*');
 		},
 		get: function(name, version) {						
 			var group = this.groups[name];
 			if( !group ) return null;
-			
 			return group.get(version);
 		},
 		maxSatisfy: function(name, version) {
