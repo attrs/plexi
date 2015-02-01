@@ -48,12 +48,11 @@ var PluginGroup = (function() {
 	};
 	
 	fn.maxSatisfy = function(match) {
-		if( !match || ~match.indexOf('/') || match.indexOf('file:') ) version = '*';
-		if( !semver.valid(match) && !semver.validRange(match) ) throw new ApplicationError('invalid version range(' + this.name + '/package.json/plexi.dependencies):' + match);
-		
+		if( !match || ~match.indexOf('/') || match.indexOf('file:') ) match = '*';
 		if( match.toLowerCase() === 'latest' || match === '*' ) return this.latest();
-		if( !match ) return null;
 		
+		if( !semver.valid(match) && !semver.validRange(match) ) throw new ApplicationError('invalid version range(' + this.name + '/package.json/plexi.dependencies):' + match);
+				
 		for(var i=0; i < this.length; i++) {
 			var plugin = this[i];
 			var version = plugin.version;
@@ -71,11 +70,12 @@ var PluginGroup = (function() {
 	
 	fn.satisfies = function(match) {
 		if( !match || ~match.indexOf('/') || match.indexOf('file:') ) version = '*';
-		if( !semver.valid(match) && !semver.validRange(match) ) throw new ApplicationError('invalid version range(' + this.name + '/package.json/plexi.dependencies):' + match);
 		
 		if( match === '*' ) return this.slice();
 		if( match === 'latest' ) return [this.latest()];
 		if( !match ) return [];
+		
+		if( !semver.valid(match) && !semver.validRange(match) ) throw new ApplicationError('invalid version range(' + this.name + '/package.json/plexi.dependencies):' + match);
 		
 		var arg = [];
 		for(var i=0; i < this.length; i++) {

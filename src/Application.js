@@ -132,8 +132,8 @@ var Application = function(homedir, argv) {
 	// read env
 	env = preferences.env || {};
 	
-	this.PLUGIN_DIR = path.resolve(home, env['plugin.dir'] || 'plexi_modules');
-	this.WORKSPACE_DIR = path.resolve(home, env['workspace.dir'] || 'workspace');
+	this.PLUGIN_DIR = path.resolve(home, env['plugin.dir'] || '.plexi/plugins');
+	this.WORKSPACE_DIR = path.resolve(home, env['workspace.dir'] || '.plexi/workspace');
 	this.LOG_DIR = env['log.dir'] ? path.resolve(home, env['log.dir']) : path.resolve(this.WORKSPACE_DIR, 'logs');
 
 	// read properties
@@ -252,6 +252,7 @@ var Application = function(homedir, argv) {
 	this.properties = properties;
 	this.preferences = preferences.preferences || {};
 	this.plugins = new PluginManager(this);
+	this.autoStart = plexi.autoStart === false ? false : true;
 	
 	// set host plugin
 	this.plugins.host(new PluginDescriptor(this, process.cwd()).instantiate());
@@ -328,6 +329,13 @@ Application.prototype = {
 	start: function() {
 		var host = this.plugins.host();
 		if( host ) host.start();
+		
+		if( this.autoStart ) {
+			this.plugins.all().forEach(function(plugin) {
+				plugin.start();
+			});
+		}
+		
 		return this;
 	},
 	plugins: function() {

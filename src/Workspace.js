@@ -7,7 +7,7 @@ var mkdirp = require('mkdirp');
 var Workspace = function Workspace(plugin) {
 	var base = plugin.application.WORKSPACE_DIR;
 	var dir = path.resolve(base, plugin.name);
-	
+		
 	Object.defineProperty(this, 'base', {
 		value: base,
 		enumerable: true,
@@ -24,15 +24,16 @@ var Workspace = function Workspace(plugin) {
 };
 
 Workspace.prototype = {
-	path: function(subpath) {
-		return path.resolve(this.dir, subpath);
+	path: function(subpath, creation) {
+		var p = path.resolve(this.dir, subpath);
+		return p;
 	},
-	mkdir: function() {
-		var dir = this.dir;
-		mkdirp.sync(dir, function(err, result) {
+	mkdir: function(subpath) {
+		var p = path.resolve(this.dir, subpath);
+		mkdirp.sync(p, function(err, result) {
 			if( err ) console.error('[error] workspace directory "' + dir + '" creation failure', err);
 		});
-		return this;
+		return p;
 	},
 	save: function(name, data, charset, options) {
 		return {

@@ -58,17 +58,24 @@ PluginContext.prototype = {
 	off: function(event, fn) {
 		this.plugin.application.off(event, fn);
 	},
+	plugin: function(name) {
+		var id = PluginIdentifier.parse(name);		
+		var version = id.version || current.dependencies[id.name] || 'latest';
+		return this.application.plugins.maxSatisfy(id.name, version);
+	},
 	require: function(name) {
+		if( name === 'plexi' ) return this.application;
+		
+		var id = PluginIdentifier.parse(name);		
 		var current = this.plugin;
-		var version = current.dependencies[name];
-		var plugin = this.application.plugins.maxSatisfy(name, version);
+		var version = id.version || current.dependencies[id.name] || 'latest';
+		var plugin = this.application.plugins.maxSatisfy(id.name, version);
 				
 		if( plugin ) {
-			//console.log('\t- require -----------------------------------');
+			//console.log('\t- require ' + plugin.id + '(' + plugin.isStarted() + ')-----------------------------------');
 			if( !plugin.isStarted() ) {
 				//console.log('\t- plugin', plugin.id);
-				//console.log('\t- caller', current.id);
-				
+				//console.log('\t- caller', current.id);				
 				plugin.start();
 			}
 
@@ -116,13 +123,13 @@ var Plugin = (function() {
 		readonly(this, 'version', descriptor.version);
 		readonly(this, 'manifest', descriptor.manifest);
 		readonly(this, 'activator', descriptor.activator);
-		readonly(this, 'dependencies', descriptor.dependencies);
+		readonly(this, 'dependencies', descriptor.dependencies || {});
 		readonly(this, 'preference', app.preference(this.id) || {});
 		readonly(this, 'logger', new Logger(path.join(app.LOG_DIR, this.id.toString())));
 		readonly(this, 'workspace', new Workspace(this));
 			
 		readonly(this, 'ctx', new PluginContext(this));		
-		
+				
 		var exports = {};
 		getset(this, 'exports', {
 			get: function() {
@@ -174,11 +181,12 @@ var Plugin = (function() {
 		readonly(this, 'start', function() {
 			if( this.isStarted() ) return false;
 			status = Plugin.STATUS_STARTED;
-		
+			
+			/*console.log(this.id + ' start');		
 			var dependencies = this.dependencies;
 			for(var name in dependencies) {
 				if( name === this.name ) continue;
-				
+								
 				var version = dependencies[name];
 				var plugin = app.plugins.maxSatisfy(name, version);				
 				if( !plugin ) {
@@ -196,12 +204,14 @@ var Plugin = (function() {
 						return;
 					}
 				}
-			}
-		
+			}*/
+			
 			exports = null;
 			var result = this.starter(this.ctx);
 			if( result !== null && result !== undefined ) exports = result;
-
+			
+			//console.log(this.id + ' started');
+			
 			this.application.emit('started', this);
 			return true;
 		}, false);

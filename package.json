@@ -1,36 +1,36 @@
 {
-	"name": "plexi",
-	"version": "0.1.0",
-	"description": "plugin system",
-	"main": "src/main.js",
-	"scripts": {
-		"test": "node -e 'console.log(\"test\")'"
-	},
-	"bin": {
-		"plexi": "bin/plexi",
-		"plx": "bin/plexi"
-	},
-	"dependencies": {
-		"cli-table": "^0.3.1",
-		"async": "^0.9.0",
-		"npm": "^2.1.5",
-		"colors": "^1.0.3",
-		"attrs.argv": "0.2",
-		"mkdirp": "^0.5.0",
-		"semver": "^4.1.0"
-	},
-	
-	"author": "joje <joje.attrs@gmail.com>",
-	"homepage": "https://github.com/attrs/plexi",
-	"repository": "attrs/plexi",
-	"license": "MIT",
-	"keywords": [
-		"plexi",
-		"plugin",
-		"plugins",
-		"module",
-		"bundle",
-		"attrs",
-		"osgi"
-	]
+  "name": "plexi",
+  "version": "0.1.0",
+  "description": "plugin system",
+  "main": "src/main.js",
+  "scripts": {
+    "test": "node -e 'console.log(\"test\")'"
+  },
+  "bin": {
+    "plexi": "bin/plexi.js",
+    "plx": "bin/plexi.js"
+  },
+  "dependencies": {
+    "async": "^0.9.0",
+    "attrs.argv": "0.2",
+    "cli-table": "^0.3.1",
+    "colors": "^1.0.3",
+    "mkdirp": "^0.5.0",
+    "node-inspector": "^0.8.3",
+    "npm": "^2.1.5",
+    "semver": "^4.1.0"
+  },
+  "author": "joje <joje.attrs@gmail.com>",
+  "homepage": "https://github.com/attrs/plexi",
+  "repository": "attrs/plexi",
+  "license": "MIT",
+  "keywords": [
+    "plexi",
+    "plugin",
+    "plugins",
+    "module",
+    "bundle",
+    "attrs",
+    "osgi"
+  ]
 }

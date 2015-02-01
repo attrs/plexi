@@ -117,9 +117,34 @@ if( cmd === 'init' ) {
 } else if( cmd === 'start' ) {
 	if( options.debug ) console.log('* starting...', options);
 	
-	app.start(options);
+	app.start(options);	
+	if( options.cli !== false ) app.cli().start();
+} else if( cmd === 'inspect' ) {	
+	if( options.debug ) console.log('* starting...', options);	
+		
+	// start node-inspector
+	var fork = require('child_process').fork;
+	var inspectorArgs = ['--save-live-edit'];
+	var forkOptions = { silent: true };
+	var inspector = fork(
+		require.resolve('node-inspector/bin/inspector'),
+		inspectorArgs,
+		forkOptions
+	);
 	
+	inspector.on('message', function(msg) {
+		switch(msg.event) {
+			case 'SERVER.LISTENING':
+				console.log('Visit %s to start debugging.', msg.address.url);
+			break;
+			case 'SERVER.ERROR':
+				console.log('Cannot start the server: %s.', msg.error.code);
+			break;
+		}
+	});
+	
+	app.start(options);	
 	if( options.cli !== false ) app.cli().start();
 } else {
-	console.log('input command:init,install,uninstall,update,link,unlink,start');
+	console.log('input command:init,install,uninstall,update,link,unlink,start,inspect');
 }
