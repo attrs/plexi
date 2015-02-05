@@ -1,6 +1,7 @@
 var path = require('path');
 var fs = require('fs');
 var semver = require('semver');
+var chalk = require('chalk');
 var EventEmitter = require('events').EventEmitter;
 var util = require("util");
 var ApplicationError = require('./ApplicationError.js');
@@ -46,9 +47,23 @@ var PluginContext = function PluginContext(plugin) {
 	readonly(this, 'activator', plugin.activator);
 	readonly(this, 'dependencies', plugin.dependencies);
 	readonly(this, 'workspace', plugin.workspace);
-	readonly(this, 'exports', plugin.exports);
-	readonly(this, 'status', plugin.status);
 	readonly(this, 'preference', plugin.preference);
+	readonly(this, 'dynamicRequire', plugin.dynamicRequire);
+	
+	getset(this, 'status', {
+		get: function() {
+			return plugin.status;
+		}
+	});
+	
+	getset(this, 'exports', {
+		get: function() {
+			return plugin.exports;
+		},
+		set: function(o) {
+			plugin.exports = o;
+		}
+	});
 };
 
 PluginContext.prototype = {
@@ -66,42 +81,55 @@ PluginContext.prototype = {
 	require: function(name) {
 		if( name === 'plexi' ) return this.application;
 		
-		var id = PluginIdentifier.parse(name);		
-		var current = this.plugin;
-		var version = id.version || current.dependencies[id.name] || 'latest';
-		var plugin = this.application.plugins.maxSatisfy(id.name, version);
-				
-		if( plugin ) {
-			//console.log('\t- require ' + plugin.id + '(' + plugin.isStarted() + ')-----------------------------------');
-			if( !plugin.isStarted() ) {
-				//console.log('\t- plugin', plugin.id);
-				//console.log('\t- caller', current.id);				
-				plugin.start();
-			}
-
-			var exports = plugin.exports || {};
-			var result = {};
+		try {			
+			var id = PluginIdentifier.parse(name);
 			
-			for(var key in exports) {
-				var o = exports[key];
-				if( typeof(o) === 'function' ) {
-					result[key] = (function(o) {
-						return function() {
-							return o.apply(current, arguments);
-						}
-					})(o);
-				} else {
-					result[key] = o;
+			if( !this.dynamicRequire && !this.dependencies[id.name] )
+				throw new ApplicationError('[' + this.id + '] cannot access non-dependency plugin [' + id + ']');
+			
+			var current = this.plugin;
+			var version = id.version || this.dependencies[id.name] || 'latest';
+			var plugin = this.application.plugins.maxSatisfy(id.name, version);
+				
+			if( plugin ) {
+				if( plugin.status === Plugin.STATUS_ERROR ) throw new ApplicationError('dependency plugin is error state [' + plugin.id + ']');
+				
+				if( !plugin.isStarted() ) {
+					//console.log('\t- plugin', plugin.id);
+					//console.log('\t- caller', current.id);				
+					plugin.start();
 				}
+
+				var exports = plugin.exports || {};
+				var result = {};
+			
+				for(var key in exports) {
+					var o = exports[key];
+					if( typeof(o) === 'function' ) {
+						result[key] = (function(o) {
+							return function() {
+								return o.apply(current, arguments);
+							}
+						})(o);
+					} else {
+						result[key] = o;
+					}
+				}
+
+				this.application.emit('require', name, plugin, current, result);			
+				//console.log('\t- [' + plugin.id + '] exports', plugin.exports, result);
+
+				return result;
+			} else {
+				throw new ApplicationError('not found dependency plugin [' + name + '@' + version + ']');
 			}
-
-			this.application.emit('require', name, plugin, current, result);			
-			//console.log('\t- [' + plugin.id + '] exports', plugin.exports, result);
-
-			return result;
-		} else {
-			throw new ApplicationError('[' + current.id + ']: dependency plugin [' + name + '@' + version + '] not found');
+		} catch(err) {
+			console.error('\n' + chalk.bold('[' + this.id + '] ') + chalk.red(err.name + ': ') + chalk.bold(err.message));
+			if( err.stack ) console.error(chalk.white(err.stack.split(err.name + ': ' + err.message + '\n').join('')) + '\n');
+			this.application.emit('requireerror', this.plugin, err);
 		}
+		
+		return null;
 	}
 };
 
@@ -122,6 +150,7 @@ var Plugin = (function() {
 		readonly(this, 'name', descriptor.name);
 		readonly(this, 'version', descriptor.version);
 		readonly(this, 'manifest', descriptor.manifest);
+		readonly(this, 'dynamicRequire', descriptor.dynamicRequire);
 		readonly(this, 'activator', descriptor.activator);
 		readonly(this, 'dependencies', descriptor.dependencies || {});
 		readonly(this, 'preference', app.preference(this.id) || {});
@@ -147,8 +176,8 @@ var Plugin = (function() {
 			}
 		});
 		
-		var starter = function emptyStarter() { if( app.debug ) console.warn('* [' + descriptor.id + '] executed empty starter'); },
-			stopper = function emptyStopper() { if( app.debug ) console.warn('* [' + descriptor.id + '] executed empty stopper'); };
+		var starter = function EmptyStarter() { if( app.debug ) console.warn('* [' + descriptor.id + '] executed empty starter'); },
+			stopper = function EmptyStopper() { if( app.debug ) console.warn('* [' + descriptor.id + '] executed empty stopper'); };
 		
 		if( this.activator ) {
 			var activatorjs = require(path.resolve(this.dir, this.activator));
@@ -156,20 +185,12 @@ var Plugin = (function() {
 			if( typeof(activatorjs) === 'function' ) {
 				starter = activatorjs;
 			} else if( typeof(activatorjs) === 'object' ) {
-				starter = typeof(activatorjs.start) === 'function' ? (function(scope) {
-					return function(ctx) {
-						return scope.start(ctx);
-					};
-				})(activatorjs) : starter;
-				stopper = typeof(activatorjs.stop) === 'function' ? (function(scope) {
-					return function(ctx) {
-						return scope.stop(ctx);
-					};
-				})(activatorjs) : stopper;
+				starter = typeof activatorjs.start === 'function' ? activatorjs.start : starter;
+				stopper = typeof activatorjs.stop === 'function' ? activatorjs.stop : stopper;
 			}
 		} else if( this.manifest.main ) {
-			var mainjs = require(path.resolve(this.dir, this.manifest.main));
-			starter = function mainStarter() {
+			var mainjs = require(this.dir);
+			starter = function() {
 				if( app.debug ) console.warn('* [' + descriptor.id + '] has no activator, executed main instead');
 				return mainjs;
 			};
@@ -179,52 +200,42 @@ var Plugin = (function() {
 		readonly(this, 'stopper', stopper);
 		
 		readonly(this, 'start', function() {
-			if( this.isStarted() ) return false;
-			status = Plugin.STATUS_STARTED;
+			if( this.isStarted() || this.status === Plugin.STATUS_ERROR ) return false;
 			
-			/*console.log(this.id + ' start');		
-			var dependencies = this.dependencies;
-			for(var name in dependencies) {
-				if( name === this.name ) continue;
-								
-				var version = dependencies[name];
-				var plugin = app.plugins.maxSatisfy(name, version);				
-				if( !plugin ) {
-					status = Plugin.STATUS_ERROR;
-					throw new ApplicationError('[' + this.id + '] dependency error, not found matched plugin: [' + name + '@' + version + ']');
-				}
-				
-				if( plugin && !plugin.isStarted() ) {
-					try {
-						plugin.start();
-					} catch(err) {
-						console.error(err.message);
-						console.error(err.stack);
-						status = Plugin.STATUS_ERROR;		
-						return;
-					}
-				}
-			}*/
+			try {
+				status = Plugin.STATUS_STARTED;
 			
-			exports = null;
-			var result = this.starter(this.ctx);
-			if( result !== null && result !== undefined ) exports = result;
+				exports = null;
+				var result = this.starter(this.ctx);
+				if( result !== null && result !== undefined ) exports = result;
 			
-			//console.log(this.id + ' started');
+				this.application.emit('started', this);
+				return true;
+			} catch(err) {
+				status = Plugin.STATUS_ERROR;
+				console.error('\n' + chalk.bold('[' + this.id + '] ') + chalk.red(err.name + ': ') + chalk.bold(err.message));
+				if( err.stack ) console.error(chalk.white(err.stack.split(err.name + ': ' + err.message + '\n').join('')) + '\n');
+				this.application.emit('starterror', this, err);
+			}
 			
-			this.application.emit('started', this);
-			return true;
+			return false;
 		}, false);
 		
 		readonly(this, 'stop', function() {
 			if( this.isStarted() ) {
-				var activator = this.activator;
-				this.stopper(this.ctx);
+				try {
+					var activator = this.activator;
+					this.stopper(this.ctx);
 		
-				status = Plugin.STATUS_STOPPED;
-				this.application.emit('stopped', this);
+					status = Plugin.STATUS_STOPPED;
+					this.application.emit('stopped', this);
 				
-				return true;
+					return true;
+				} catch(err) {
+					console.error('\n' + chalk.bold('[' + this.id + '] ') + chalk.red(err.name + ': ') + chalk.bold(err.message));
+					if( err.stack ) console.error(chalk.white(err.stack.split(err.name + ': ' + err.message + '\n').join('')) + '\n');
+					this.application.emit('stoperror', this, err);
+				}
 			}
 			
 			return false;
@@ -341,6 +352,7 @@ var PluginDescriptor = (function() {
 		readonly(this, 'manifest', manifest);
 		readonly(this, 'activator', plexi && plexi.activator);
 		readonly(this, 'dependencies', plexi && plexi.dependencies);
+		readonly(this, 'dynamicRequire', manifest.dynamicRequire ? true : false);
 	
 		var instance;
 		this.instantiate = function() {

@@ -82,7 +82,13 @@ var instances = [];
 
 var Application = function(homedir, argv) {
 	if( !homedir || typeof(homedir) !== 'string' ) throw new ApplicationError('missing or illegal home directory', homedir);
-		
+	
+	var self = this;
+	process.on('exit', function(code) {
+		console.log('plexi exit', code);
+		self.stop();
+	});
+	
 	argv = argv || {};
 	if( argv.debug ) this.debug = true;
 	
@@ -134,7 +140,7 @@ var Application = function(homedir, argv) {
 	
 	this.PLUGIN_DIR = path.resolve(home, env['plugin.dir'] || '.plexi/plugins');
 	this.WORKSPACE_DIR = path.resolve(home, env['workspace.dir'] || '.plexi/workspace');
-	this.LOG_DIR = env['log.dir'] ? path.resolve(home, env['log.dir']) : path.resolve(this.WORKSPACE_DIR, 'logs');
+	this.LOG_DIR = path.resolve(home, env['log.dir'] || '.plexi/logs');
 
 	// read properties
 	var properties = {};

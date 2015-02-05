@@ -9,10 +9,14 @@ function stringify(o, t) {
 	if( typeof(o) === 'function' ) return '(function)';
 	
 	if( arguments.length === 1 || !t ) t = '\t';
-	return JSON.stringify(o, function(key, value) {
-		if (typeof(value) === 'function') return '(function)';
-		return value;
-	}, t);
+	try {
+		return JSON.stringify(o, function(key, value) {
+			if (typeof(value) === 'function') return '(function)';
+			return value;
+		}, t);
+	} catch(err) {
+		return err.name + ': ' + err.message;
+	}
 }
 
 CLInterface.prototype = {
@@ -302,7 +306,6 @@ CLInterface.prototype = {
 				table.push(['help, h, ?', 'help']);
 				console.log(table.toString());
 			} else if ( cmd === 'quit' || cmd === 'q' ) {
-				app.stop();				
 				process.exit(0);
 			} else if( cmd ) {
 				console.log('"' + cmd + '" is unknown command.');

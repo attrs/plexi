@@ -8,11 +8,12 @@
   },
   "bin": {
     "plexi": "bin/plexi.js",
-    "plx": "bin/plexi.js"
+    "px": "bin/plexi.js"
   },
   "dependencies": {
     "async": "^0.9.0",
     "attrs.argv": "0.2",
+    "chalk": "^0.5.1",
     "cli-table": "^0.3.1",
     "colors": "^1.0.3",
     "mkdirp": "^0.5.0",
