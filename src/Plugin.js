@@ -27,6 +27,17 @@ function getset(o, name, gettersetter, enumerable) {
 	});
 }
 
+function error(id, err) {
+	if( err instanceof Error ) {
+		console.error('\n' + chalk.bold('[' + id + '] ') + chalk.red(err.name + ': ') + chalk.bold(err.message));
+		if( err.stack ) console.error(chalk.white(err.stack.split(err.name + ': ' + err.message + '\n').join('')) + '\n');
+	} else {
+		console.error('\n' + chalk.bold('[' + id + '] ') + chalk.bold(err));
+		var err = new Error();
+		console.error(chalk.white(err.stack.split(err.name + ': ' + err.message + '\n').join('')) + '\n');
+	}
+}
+
 
 // Plugin Context
 var PluginContext = function PluginContext(plugin) {
@@ -124,8 +135,7 @@ PluginContext.prototype = {
 				throw new ApplicationError('not found dependency plugin [' + name + '@' + version + ']');
 			}
 		} catch(err) {
-			console.error('\n' + chalk.bold('[' + this.id + '] ') + chalk.red(err.name + ': ') + chalk.bold(err.message));
-			if( err.stack ) console.error(chalk.white(err.stack.split(err.name + ': ' + err.message + '\n').join('')) + '\n');
+			error(this.id, err);
 			this.application.emit('requireerror', this.plugin, err);
 		}
 		
@@ -213,8 +223,7 @@ var Plugin = (function() {
 				return true;
 			} catch(err) {
 				status = Plugin.STATUS_ERROR;
-				console.error('\n' + chalk.bold('[' + this.id + '] ') + chalk.red(err.name + ': ') + chalk.bold(err.message));
-				if( err.stack ) console.error(chalk.white(err.stack.split(err.name + ': ' + err.message + '\n').join('')) + '\n');
+				error(this.id, err);
 				this.application.emit('starterror', this, err);
 			}
 			
@@ -232,8 +241,7 @@ var Plugin = (function() {
 				
 					return true;
 				} catch(err) {
-					console.error('\n' + chalk.bold('[' + this.id + '] ') + chalk.red(err.name + ': ') + chalk.bold(err.message));
-					if( err.stack ) console.error(chalk.white(err.stack.split(err.name + ': ' + err.message + '\n').join('')) + '\n');
+					error(this.id, err);
 					this.application.emit('stoperror', this, err);
 				}
 			}
