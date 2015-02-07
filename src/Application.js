@@ -1,6 +1,6 @@
 var path = require('path');
 var fs = require('fs');
-var colors = require('colors');
+var chalk = require('chalk');
 var semver = require('semver');
 var EventEmitter = require('events').EventEmitter;
 
@@ -13,6 +13,7 @@ var Workspace = require('./Workspace.js');
 var ApplicationError = require('./ApplicationError.js');
 var cli = require('./cli.js');
 var commands = require('./commands.js');
+var util = require('./util.js');
 
 if( !String.prototype.startsWith ) {
 	String.prototype.startsWith = function(s) {
@@ -85,7 +86,7 @@ var Application = function(homedir, argv) {
 	
 	var self = this;
 	process.on('exit', function(code) {
-		console.log('plexi exit', code);
+		util.debug(self, 'exit! code=' + code);
 		self.stop();
 	});
 	
@@ -236,18 +237,17 @@ var Application = function(homedir, argv) {
 	this.ee = new EventEmitter();	
 	if( this.debug ) {
 		this.on('detected', function(plugin) {
-			console.log('* [' + plugin.id + '] plugin detected!');
+			util.debug(plugin, 'plugin detected!');
 		}).on('bound', function(plugin) {
-			console.log('* [' + plugin.id + '] plugin bound!');
+			util.debug(plugin, 'plugin bound!');
 		}).on('started', function(plugin) {
-			console.log('* [' + plugin.id + '] plugin started!');
+			util.debug(plugin, 'plugin started!');
 		}).on('stopped', function(plugin) {
-			console.log('* [' + plugin.id + '] plugin stopped!');
+			util.debug(plugin, 'plugin stopped!');
 		}).on('detect-error', function(plugin) {
-			console.log('* [' + plugin.id + '] plugin error!');
+			util.debug(plugin, 'plugin error!');
 		}).on('require', function(name, plugin, caller, exports) {
-			console.log('* [' + caller.id + '] plugin require "' + name + '" [' + plugin.id + ']');
-			console.log('\texports: ', exports);
+			util.debug(caller, 'call require', name, plugin.id.toString(), '\n\texports: ', exports);
 		});
 	}
 
@@ -273,10 +273,10 @@ var Application = function(homedir, argv) {
 				if( !this.plugins.exists(descriptor.name, descriptor.version) ) {
 					this.plugins.add(descriptor.instantiate());
 				} else {
-					console.warn(('* [' + descriptor.id + '] already exists, ignored.').yellow, link);						
+					util.warn(descriptor, 'already detected plugin id, ignored.', link);					
 				}
 			} else {
-				console.warn(('[WARN] path in .plexilinks : "' + link + '" does not exists, ignored.').underline.bgBlack.yellow);
+				util.warn(this, 'path in .plexilinks : "' + link + '" does not exists, ignored.');
 			}
 		}
 	}
@@ -294,7 +294,7 @@ var Application = function(homedir, argv) {
 			if( fs.statSync(dir).isDirectory() ) {
 				var descriptor = new PluginDescriptor(this, dir);
 				if( this.plugins.exists(descriptor.name, descriptor.version) ) {
-					console.warn(('* [' + descriptor.id + '] already exists, ignored.').yellow, dir);
+					util.warn(descriptor, 'already detected plugin id, ignored.', dir);
 				} else {
 					this.plugins.add(descriptor.instantiate());
 				}
@@ -333,13 +333,19 @@ Application.prototype = {
 		return this._cli = this._cli || cli.application(this);
 	},
 	start: function() {
-		var host = this.plugins.host();
-		if( host ) host.start();
+		try {
+			console.log(chalk.red.bold('[' + this.toString() + ']'), chalk.white('application startup'), chalk.white(this.home));
+			var host = this.plugins.host();
+			if( host ) host.start();
 		
-		if( this.autoStart ) {
-			this.plugins.all().forEach(function(plugin) {
-				plugin.start();
-			});
+			if( this.autoStart ) {
+				this.plugins.all().forEach(function(plugin) {
+					plugin.start();
+				});
+			}
+		} catch( err ) {
+			util.error(this, err);
+			process.exit(1);
 		}
 		
 		return this;
@@ -356,10 +362,10 @@ Application.prototype = {
 				this.links.push(descriptor.dir);
 				return plugin;
 			} else {
-				console.warn('[WARN] "' + descriptor.id + '" already exists, ignored.', link);				
+				util.warn(this, '"' + descriptor.id + '" already exists, ignored.', link);				
 			}
 		} else {
-			console.warn(('[WARN] .plexilinks : "' + link + '" does not exists, ignored.').underline.bgBlack.yellow);
+			util.warn(this, '.plexilinks : "' + link + '" does not exists, ignored.');
 		}
 		
 		return false;
@@ -389,7 +395,8 @@ Application.prototype = {
 	install: function(pkgs, fn) {				
 		var tasks = [];
 		var plugins = this.plugins;
-		pkgs.forEach(function(pkg) {			
+		pkgs.forEach(function(pkg) {
+			util.debug(this, 'installing...', pkg);		
 			tasks.push((function(pkg) {
 				return function(callback) {
 					plugins.install(pkg, function(err, result) {
@@ -421,7 +428,7 @@ Application.prototype = {
 		var tasks = [];
 		var plugins = this.plugins;
 		pkgs.forEach(function(pkg) {
-			console.log('uninstall', pkg);
+			util.debug(this, 'uninstalling...', pkg);
 			tasks.push((function(pkg) {
 				return function(callback) {
 					plugins.uninstall(pkg, function(err, result) {
@@ -484,6 +491,9 @@ Application.prototype = {
 			plugin.stop();
 		});
 		return this;
+	},
+	toString: function() {
+		return 'plexi';
 	}
 };
 

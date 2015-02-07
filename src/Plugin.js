@@ -7,36 +7,10 @@ var util = require("util");
 var ApplicationError = require('./ApplicationError.js');
 var Logger = require('./Logger.js');
 var Workspace = require('./Workspace.js');
+var util = require('./util.js');
 
-// define util functions
-function readonly(o, name, value, enumerable) {
-	Object.defineProperty(o, name, {
-		value: value,
-		enumerable: enumerable === false ? false : true,
-		configurable: false,
-		writable: false
-	});
-}
-
-function getset(o, name, gettersetter, enumerable) {
-	Object.defineProperty(o, name, {
-		get: gettersetter.get,
-		set: gettersetter.set,
-		enumerable: enumerable === true ? false : true,
-		configurable: false			
-	});
-}
-
-function error(id, err) {
-	if( err instanceof Error ) {
-		console.error('\n' + chalk.bold('[' + id + '] ') + chalk.red(err.name + ': ') + chalk.bold(err.message));
-		if( err.stack ) console.error(chalk.white(err.stack.split(err.name + ': ' + err.message + '\n').join('')) + '\n');
-	} else {
-		console.error('\n' + chalk.bold('[' + id + '] ') + chalk.bold(err));
-		var err = new Error();
-		console.error(chalk.white(err.stack.split(err.name + ': ' + err.message + '\n').join('')) + '\n');
-	}
-}
+var readonly = util.readonly;
+var getset = util.getset;
 
 
 // Plugin Context
@@ -135,11 +109,14 @@ PluginContext.prototype = {
 				throw new ApplicationError('not found dependency plugin [' + name + '@' + version + ']');
 			}
 		} catch(err) {
-			error(this.id, err);
+			util.error(this, 'require error', err);
 			this.application.emit('requireerror', this.plugin, err);
 		}
 		
 		return null;
+	},
+	toString: function() {
+		return 'ctx:' + this.id;
 	}
 };
 
@@ -186,8 +163,8 @@ var Plugin = (function() {
 			}
 		});
 		
-		var starter = function EmptyStarter() { if( app.debug ) console.warn('* [' + descriptor.id + '] executed empty starter'); },
-			stopper = function EmptyStopper() { if( app.debug ) console.warn('* [' + descriptor.id + '] executed empty stopper'); };
+		var starter = function EmptyStarter() { if( app.debug ) util.warn(this, 'empty starter executed'); },
+			stopper = function EmptyStopper() { if( app.debug ) util.warn(this, 'empty stopper executed'); };
 		
 		if( this.activator ) {
 			var activatorjs = require(path.resolve(this.dir, this.activator));
@@ -223,11 +200,9 @@ var Plugin = (function() {
 				return true;
 			} catch(err) {
 				status = Plugin.STATUS_ERROR;
-				error(this.id, err);
 				this.application.emit('starterror', this, err);
+				throw new ApplicationError('start error: ' + err.message, err);
 			}
-			
-			return false;
 		}, false);
 		
 		readonly(this, 'stop', function() {
@@ -241,12 +216,10 @@ var Plugin = (function() {
 				
 					return true;
 				} catch(err) {
-					error(this.id, err);
 					this.application.emit('stoperror', this, err);
+					throw new ApplicationError('stop error: ' + err.message, err);
 				}
 			}
-			
-			return false;
 		}, false);
 			
 		this.application.emit('detected', this);
@@ -263,6 +236,9 @@ var Plugin = (function() {
 		},
 		isStarted: function() {
 			return (this.status === Plugin.STATUS_STARTED);		
+		},
+		toString: function() {
+			return 'plugin:' + this.id;
 		}
 	};
 	
@@ -367,6 +343,12 @@ var PluginDescriptor = (function() {
 			return instance || (instance = new Plugin(this));
 		};
 	}
+	
+	PluginDescriptor.prototype = {
+		toString: function() {
+			return 'desc:' + this.id;
+		}
+	};
 	
 	return PluginDescriptor;
 })();
