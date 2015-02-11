@@ -13,7 +13,7 @@ var Workspace = require('./Workspace.js');
 var ApplicationError = require('./ApplicationError.js');
 var cli = require('./cli.js');
 var commands = require('./commands.js');
-var util = require('./util.js');
+var util = require('attrs.util');
 
 if( !String.prototype.startsWith ) {
 	String.prototype.startsWith = function(s) {
@@ -53,12 +53,16 @@ function rmdirRecursive(path) {
 };
 
 function makeSaveReload(o, file, options) {
+	options = options || {};
+	var root = options.root || o;
+	
 	Object.defineProperty(o, 'save', {
 		value: function(fn) {
-			var data = JSON.stringify(this, null, '\t');
+			var data = JSON.stringify(root, null, '\t');
 			fs.writeFileSync(file, data, {encoding:'utf8'});
 			
-			if( options && options.save ) options.save.call(this, data);
+			if( options.save ) options.save.call(this, data);
+			return this;
 		},
 		enumerable: false,
 		configurable: false,
@@ -70,8 +74,8 @@ function makeSaveReload(o, file, options) {
 			var data = fs.readFileSync(file);
 			
 			var result;
-			if( options && options.reload ) result = options.reload.call(this, data);
-			result = result || data;
+			if( options.reload ) result = options.reload.call(this, data);
+			return result || data;
 		},
 		enumerable: false,
 		configurable: false,
@@ -86,7 +90,7 @@ var Application = function(homedir, argv) {
 	
 	var self = this;
 	process.on('exit', function(code) {
-		util.debug(self, 'exit! code=' + code);
+		util.debug(self, 'exit. code=' + code);
 		self.stop();
 	});
 	
@@ -174,6 +178,8 @@ var Application = function(homedir, argv) {
 		
 		preferences = preferences.split('\\').join('/');
 		preferences = JSON.parse(preferences);
+		
+		makeSaveReload(preferences, path.resolve(home, 'plexi.json'));
 	} catch(err) {
 		throw new ApplicationError('application_load_error:config_file_parse:' + pref_file + ':' + err.message, err);
 	}
@@ -256,9 +262,18 @@ var Application = function(homedir, argv) {
 	this.manifest = manifest;
 	this.links = links;
 	this.properties = properties;
-	this.preferences = preferences.preferences || {};
+	this.preferences = preferences.preferences = preferences.preferences || {};
 	this.plugins = new PluginManager(this);
 	this.autoStart = plexi.autoStart === false ? false : true;
+	
+	this.preferences.save = function() {
+		preferences.save();
+		return this;
+	};
+	this.preferences.reload = function() {
+		preferences = preferences.reload();
+		return preferences.preferences = preferences.preferences || {};
+	};
 	
 	// set host plugin
 	this.plugins.host(new PluginDescriptor(this, process.cwd()).instantiate());
@@ -273,10 +288,10 @@ var Application = function(homedir, argv) {
 				if( !this.plugins.exists(descriptor.name, descriptor.version) ) {
 					this.plugins.add(descriptor.instantiate());
 				} else {
-					util.warn(descriptor, 'already detected plugin id, ignored.', link);					
+					util.warn(descriptor, 'already exists', link);					
 				}
 			} else {
-				util.warn(this, 'path in .plexilinks : "' + link + '" does not exists, ignored.');
+				util.warn(this, '.plexilinks : "' + link + '" not found');
 			}
 		}
 	}
@@ -294,7 +309,7 @@ var Application = function(homedir, argv) {
 			if( fs.statSync(dir).isDirectory() ) {
 				var descriptor = new PluginDescriptor(this, dir);
 				if( this.plugins.exists(descriptor.name, descriptor.version) ) {
-					util.warn(descriptor, 'already detected plugin id, ignored.', dir);
+					util.warn(descriptor, 'already exists', dir);
 				} else {
 					this.plugins.add(descriptor.instantiate());
 				}
@@ -334,7 +349,7 @@ Application.prototype = {
 	},
 	start: function() {
 		try {
-			console.log(chalk.red.bold('[' + this.toString() + ']'), chalk.white('application startup'), chalk.white(this.home));
+			console.log(chalk.cyan.bold('[' + this.toString() + ']'), chalk.black(chalk.white('application startup'), chalk.white(this.home)));
 			var host = this.plugins.host();
 			if( host ) host.start();
 		
@@ -362,10 +377,10 @@ Application.prototype = {
 				this.links.push(descriptor.dir);
 				return plugin;
 			} else {
-				util.warn(this, '"' + descriptor.id + '" already exists, ignored.', link);				
+				util.warn(this, '"' + descriptor.id + '" already exists', link);				
 			}
 		} else {
-			util.warn(this, '.plexilinks : "' + link + '" does not exists, ignored.');
+			util.warn(this, '.plexilinks : "' + link + '" not found');
 		}
 		
 		return false;
@@ -396,7 +411,7 @@ Application.prototype = {
 		var tasks = [];
 		var plugins = this.plugins;
 		pkgs.forEach(function(pkg) {
-			util.debug(this, 'installing...', pkg);		
+			util.debug('plexi', 'installing...', pkg);		
 			tasks.push((function(pkg) {
 				return function(callback) {
 					plugins.install(pkg, function(err, result) {
@@ -428,7 +443,7 @@ Application.prototype = {
 		var tasks = [];
 		var plugins = this.plugins;
 		pkgs.forEach(function(pkg) {
-			util.debug(this, 'uninstalling...', pkg);
+			util.debug('plexi', 'uninstalling...', pkg);
 			tasks.push((function(pkg) {
 				return function(callback) {
 					plugins.uninstall(pkg, function(err, result) {
@@ -458,17 +473,16 @@ Application.prototype = {
 		identifier = PluginIdentifier.parse(identifier);
 		
 		var prefs = this.preferences;
-		if( prefs ) {			
-			var pref = prefs[identifier.name];
-						
-			if( identifier.version ) {
-				pref = prefs[identifier.name + '@' + identifier.version] || pref;
-			}
-			
-			if( pref ) return JSON.parse(JSON.stringify(pref));
+		var pref = prefs[identifier.name];
+					
+		if( identifier.version ) {
+			pref = prefs[identifier.name + '@' + identifier.version] || pref;
 		}
-
-		return null;
+		
+		if( !pref ) pref = this.preferences[identifier.name] = {};
+		//JSON.parse(JSON.stringify(pref));
+		
+		return pref;
 	},
 	on: function(type, fn) {
 		this.ee.on(type, fn);

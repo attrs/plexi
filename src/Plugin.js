@@ -7,7 +7,7 @@ var util = require("util");
 var ApplicationError = require('./ApplicationError.js');
 var Logger = require('./Logger.js');
 var Workspace = require('./Workspace.js');
-var util = require('./util.js');
+var util = require('attrs.util');
 
 var readonly = util.readonly;
 var getset = util.getset;
@@ -140,7 +140,7 @@ var Plugin = (function() {
 		readonly(this, 'dynamicRequire', descriptor.dynamicRequire);
 		readonly(this, 'activator', descriptor.activator);
 		readonly(this, 'dependencies', descriptor.dependencies || {});
-		readonly(this, 'preference', app.preference(this.id) || {});
+		readonly(this, 'preference', app.preference(this.id));
 		readonly(this, 'logger', new Logger(path.join(app.LOG_DIR, this.id.toString())));
 		readonly(this, 'workspace', new Workspace(this));
 			
