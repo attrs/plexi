@@ -1,4 +1,4 @@
-var colors = require('colors');
+var util = require('attrs.util');
 
 
 function profile(options, arg, fn) {

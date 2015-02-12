@@ -3,7 +3,7 @@ var npm = require('npm');
 var async = require('async');
 var path = require('path');
 var fs = require('fs');
-var colors = require('colors');
+var util = require('attrs.util');
 
 var Plugin = require('./Plugin.js').Plugin;
 var PluginDescriptor = require('./Plugin.js').PluginDescriptor;

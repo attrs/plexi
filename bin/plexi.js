@@ -6,7 +6,6 @@ process.title = 'plexi';
 
 var path = require('path');
 var fs = require('fs');
-var colors = require('colors');
 var mkdirp = require('mkdirp');
 var Application = require('../src/Application.js');
 var argv = process.argv;

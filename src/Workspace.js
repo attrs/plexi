@@ -6,7 +6,7 @@ var mkdirp = require('mkdirp');
 // Plugin Workspace
 var Workspace = function Workspace(plugin) {
 	var base = plugin.application.WORKSPACE_DIR;
-	var dir = path.resolve(base, plugin.name);
+	var dir = path.resolve(base, plugin.id.name);
 		
 	Object.defineProperty(this, 'base', {
 		value: base,

@@ -10,10 +10,10 @@ var PluginDescriptor = require('./Plugin.js').PluginDescriptor;
 var PluginManager = require('./PluginManager.js');
 var Logger = require('./Logger.js');
 var Workspace = require('./Workspace.js');
-var ApplicationError = require('./ApplicationError.js');
 var cli = require('./cli.js');
 var commands = require('./commands.js');
 var util = require('attrs.util');
+var ApplicationError = util.createErrorType('ApplicationError');
 
 if( !String.prototype.startsWith ) {
 	String.prototype.startsWith = function(s) {
@@ -103,86 +103,89 @@ var Application = function(homedir, argv) {
 	var plexi = manifest.plexi || {};
 	var dependencies = plexi.dependencies || {};
 	var version = plexipkg.version;
-	var preferences, env, links;
 	
 	makeSaveReload(manifest, path.resolve(home, 'package.json'));
 	
-	if( !argv.ignorelinks ) {
-		var linksfile = path.resolve(home, '.plexilinks');
-		if( fs.existsSync(linksfile) && fs.statSync(linksfile).isFile() ) {
-			var links_text = fs.readFileSync(linksfile, {encoding:'utf8'});
-			if( links_text ) {
-				var links_array = links_text.toString().split('\r').join('').split('\t').join('').split('\n');
+	var preferences = (function(argv) {
+		var raw = {}, prefs = {}, properties = {}, env = {}, file = path.resolve(home, 'plexi.json');
+		
+		var result = {
+			get env() {
+				return env;
+			},
+			get properties() {
+				return properties;
+			},
+			get raw() {
+				return raw;
+			},
+			get prefs() {
+				return prefs;
+			},
+			get: function(id) {
+				return prefs[id.toString() || id.name];
+			},
+			set: function(id, pref) {
+				if( id instanceof PluginIdentifier ) id = id.name;
+				if( typeof id !== 'string' ) return util.error(self, 'invalid plugin id', id);
+				if( typeof pref !== 'object' ) return util.error(self, 'preference must be an object', id, pref);
 				
-				if( links_array.length ) {
-					links = [];
-					for(var i=0; i < links_array.length; i++) {
-						var link = links_array[i];
-						
-						link = link.split('#')[0];
-						
-						if( link ) links.push(link.split('\t').join('').trim());
-					}
-					if( !links.length ) links = null;
+				if( !raw.preferences ) raw.preferences = {};
+				raw.preferences[id] = pref;
+				
+				pref = JSON.stringify(pref);	
+				pref = pref.split('\\').join('/');
+				
+				for(var k in properties) {
+					pref = pref.split('{' + k + '}').join(properties[k]);
 				}
+								
+				pref = JSON.parse(pref);				
+				prefs[id] = pref;
+				
+				return pref;
+			},
+			save: function() {
+				fs.writeFileSync(file, JSON.stringify(raw, null, '\t'), {encoding:'utf8'});
+				return this;
+			},
+			reload: function() {
+				try {
+					if( fs.existsSync(file) && fs.statSync(file).isFile() ) {
+						raw = require(file);
+					}
+					
+					var newenv = raw.env ? util.mix({}, raw.env) : {};
+					newenv['plugin.dir'] = env['plugin.dir'] || path.resolve(home, newenv['plugin.dir'] || '.plexi/plugins');
+					newenv['workspace.dir'] = env['plugin.dir'] || path.resolve(home, newenv['workspace.dir'] || '.plexi/workspace');
+					newenv['log.dir'] = env['plugin.dir'] || path.resolve(home, newenv['log.dir'] || '.plexi/log');
+					env = newenv;
+					
+					properties = util.mix({}, raw.properties || {}, argv || {});
+					properties['home'] = home;
+					properties['plexi.version'] = version
+					properties['plugin.dir'] = env['plugin.dir'];;
+					properties['workspace.dir'] = env['workspace.dir'];
+					properties['log.dir'] = env['log.dir'];
+					
+					for(var k in raw.preferences) {
+						result.set(k, raw.preferences[k]);
+					}
+				} catch(err) {
+					return util.error(self, err);
+				}
+				return this;
 			}
-		}
-	}
-	
-	// read preference file
-	if( true ) {
-		var preference_file = path.resolve(home, 'plexi.json');
+		};
 		
-		if( fs.existsSync(preference_file) && fs.statSync(preference_file).isFile() ) {
-			preferences = require(preference_file);
-		} else {
-			preferences = {};
-		}
-	}
-	
-	// read env
-	env = preferences.env || {};
-	
-	this.PLUGIN_DIR = path.resolve(home, env['plugin.dir'] || '.plexi/plugins');
-	this.WORKSPACE_DIR = path.resolve(home, env['workspace.dir'] || '.plexi/workspace');
-	this.LOG_DIR = path.resolve(home, env['log.dir'] || '.plexi/logs');
-
-	// read properties
-	var properties = {};
-	if( typeof(argv) === 'object' ) {
-		for( var key in argv ) {
-			if( !key || !argv.hasOwnProperty(key) ) continue;
-			properties[key] = argv[key];
-		}
-	}		
-	
-	if( preferences.properties ) {
-		for( var key in preferences.properties ) {
-			if( !key || !preferences.properties.hasOwnProperty(key) ) continue;
-			properties[key] = preferences.properties[key];
-		}
-	}
-	
-	properties['home'] = this.home;
-	properties['plexi.version'] = version;
-	properties['workspace.dir'] = this.WORKSPACE_DIR;
-	properties['plugin.dir'] = this.PLUGIN_DIR;
-	properties['log.dir'] = this.LOG_DIR;
-	
-	try {
-		preferences = JSON.stringify(preferences);
-		for(var k in properties) {
-			var value = properties[k] || '';
-			preferences = preferences.split('{' + k + '}').join(value);
-		}
+		return result;
+	})(argv);
 		
-		preferences = preferences.split('\\').join('/');
-		preferences = JSON.parse(preferences);
-		
-		makeSaveReload(preferences, path.resolve(home, 'plexi.json'));
-	} catch(err) {
-		throw new ApplicationError('application_load_error:config_file_parse:' + pref_file + ':' + err.message, err);
-	}
+	preferences.reload();
+	
+	this.PLUGIN_DIR = preferences.env['plugin.dir'];
+	this.WORKSPACE_DIR = preferences.env['workspace.dir'];
+	this.LOG_DIR = preferences.env['log.dir'];
 	
 	// init commands
 	this.commands = commands(this);
@@ -261,39 +264,49 @@ var Application = function(homedir, argv) {
 	this.version = version;
 	this.manifest = manifest;
 	this.links = links;
-	this.properties = properties;
-	this.preferences = preferences.preferences = preferences.preferences || {};
+	this.preferences = preferences;
+	this.properties = preferences.properties;
 	this.plugins = new PluginManager(this);
 	this.autoStart = plexi.autoStart === false ? false : true;
-	
-	this.preferences.save = function() {
-		preferences.save();
-		return this;
-	};
-	this.preferences.reload = function() {
-		preferences = preferences.reload();
-		return preferences.preferences = preferences.preferences || {};
-	};
 	
 	// set host plugin
 	this.plugins.host(new PluginDescriptor(this, process.cwd()).instantiate());
 	
-	// links 가 있다면 활성화
-	var links = this.links;
-	if( links ) {
-		for(var i=0; i < links.length; i++) {
-			var link = links[i] = path.normalize(path.resolve(process.cwd(), links[i]));
+	// links 가 있다면 활성
+	var links = this.links = [];
+	if( !argv.ignorelinks ) {
+		var linksfile = path.resolve(home, '.plexilinks');
+		if( fs.existsSync(linksfile) && fs.statSync(linksfile).isFile() ) {
+			var links_text = fs.readFileSync(linksfile, {encoding:'utf8'});
+			if( links_text ) {
+				var links_array = links_text.toString().split('\r').join('').split('\t').join('').split('\n');
+				
+				if( links_array.length ) {
+					for(var i=0; i < links_array.length; i++) {
+						var link = links_array[i];
+						
+						link = link.split('#')[0];
+						
+						if( link ) links.push(link.split('\t').join('').trim());
+					}
+					if( !links.length ) links = null;
+				}
+			}
+		}
+		
+		links.forEach(function(link) {
+			link = path.normalize(path.resolve(process.cwd(), link));
 			if( link && fs.existsSync(link) && fs.statSync(link).isDirectory() ) {
-				var descriptor = new PluginDescriptor(this, link);
-				if( !this.plugins.exists(descriptor.name, descriptor.version) ) {
-					this.plugins.add(descriptor.instantiate());
+				var descriptor = new PluginDescriptor(self, link);
+				if( !self.plugins.exists(descriptor.name, descriptor.version) ) {
+					self.plugins.add(descriptor.instantiate());
 				} else {
 					util.warn(descriptor, 'already exists', link);					
 				}
 			} else {
-				util.warn(this, '.plexilinks : "' + link + '" not found');
+				util.warn(self, '.plexilinks : "' + link + '" not found');
 			}
-		}
+		});
 	}
 	
 	// plugin.dir 에서 활성화
@@ -478,9 +491,6 @@ Application.prototype = {
 		if( identifier.version ) {
 			pref = prefs[identifier.name + '@' + identifier.version] || pref;
 		}
-		
-		if( !pref ) pref = this.preferences[identifier.name] = {};
-		//JSON.parse(JSON.stringify(pref));
 		
 		return pref;
 	},
