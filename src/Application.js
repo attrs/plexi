@@ -486,10 +486,10 @@ Application.prototype = {
 		identifier = PluginIdentifier.parse(identifier);
 		
 		var prefs = this.preferences;
-		var pref = prefs[identifier.name];
+		var pref = prefs.get(identifier.name);
 					
 		if( identifier.version ) {
-			pref = prefs[identifier.name + '@' + identifier.version] || pref;
+			pref = prefs.get(identifier.name + '@' + identifier.version) || pref;
 		}
 		
 		return pref;
