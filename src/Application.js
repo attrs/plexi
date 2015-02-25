@@ -90,7 +90,7 @@ var Application = function(homedir, argv) {
 	
 	var self = this;
 	process.on('exit', function(code) {
-		util.debug(self, 'exit. code=' + code);
+		if( code !== 0 ) util.error(self, 'abnormal termination(' + code + ')');
 		self.stop();
 	});
 	

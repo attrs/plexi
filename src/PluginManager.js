@@ -3,6 +3,7 @@ var npm = require('npm');
 var async = require('async');
 var path = require('path');
 var fs = require('fs');
+var wrench = require('wrench');
 var util = require('attrs.util');
 
 var Plugin = require('./Plugin.js').Plugin;
@@ -137,25 +138,6 @@ var PluginGroup = (function() {
 	return PluginGroup;
 })();
 
-
-
-
-var rmdirRecursive = function(path) {
-    var files = [];
-    if( fs.existsSync(path) ) {
-        files = fs.readdirSync(path);
-        files.forEach(function(file,index){
-            var curPath = path + "/" + file;
-            if(fs.lstatSync(curPath).isDirectory()) { // recurse
-                rmdirRecursive(curPath);
-            } else { // delete file
-                fs.unlinkSync(curPath);
-            }
-        });
-        fs.rmdirSync(path);
-    }
-};
-
 // class PluginManager
 var PluginManager = (function() {
 	"use strict"
@@ -265,13 +247,14 @@ var PluginManager = (function() {
 			var plugindir = this.app.PLUGIN_DIR;
 			var tmpbase = path.resolve(this.app.PLUGIN_DIR, '.temp');
 		
-			rmdirRecursive(tmpbase);
+			wrench.rmdirSyncRecursive(tmpbase, true);
+			wrench.mkdirSyncRecursive(tmpbase);
 		
 			var err, results, self = this;
 			
 			var error = function(err) {
 				q.kill();
-				rmdirRecursive(tmpbase);
+				wrench.rmdirSyncRecursive(tmpbase);
 				fn(err);
 			};
 			
@@ -285,8 +268,11 @@ var PluginManager = (function() {
 				var tmpdir = path.resolve(tmpbase, '' + Math.random());
 		    
 				//console.log('* installing ' + identifier);
-				npm.load(function(err) {
-					if(err) return error('[' + identifier + '] npm load error: ' + err);
+				npm.load({
+					'loglevel': 'error',
+					'unsafe-perm': 'true'
+				}, function(err) {
+					if(err) return error('[' + identifier + '] npm load error: ' + err);					
 					
 					npm.commands.install(tmpdir, identifier, function (err, data) {
 						if(err) return error('[' + identifier + '] npm install error: ' + err);
@@ -333,7 +319,7 @@ var PluginManager = (function() {
 					
 							var dir = path.resolve(plugindir, (npmname + '@' + npmversion));
 							
-							if( fs.existsSync(dir) ) rmdirRecursive(dir);
+							if( fs.existsSync(dir) ) wrench.rmdirSyncRecursive(dir);
 							fs.renameSync(downloaded, dir);
 													
 							var info = {
@@ -369,7 +355,7 @@ var PluginManager = (function() {
 			}, 1);
 		
 			q.drain = function() {
-				rmdirRecursive(tmpbase);
+				wrench.rmdirSyncRecursive(tmpbase);
 				
 				fn(err, results);
 			};
@@ -400,13 +386,15 @@ var PluginManager = (function() {
 					
 					// remove physically					
 					var dir = path.resolve(plugindir, plugin.id.toString());
-					rmdirRecursive(dir);
+					if( fs.existsSync(dir) ) {
+						wrench.rmdirSyncRecursive(dir);
 					
-					results.uninstalled.push({
-						name: plugin.name,
-						version: plugin.version,
-						dir: dir
-					});
+						results.uninstalled.push({
+							name: plugin.name,
+							version: plugin.version,
+							dir: dir
+						});
+					}
 				}
 			}
 			
