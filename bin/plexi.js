@@ -39,9 +39,7 @@ var app = new Application(process.cwd(), {
 	debug: options.debug
 });
 
-global.plexi = {
-	currentApplication: app 
-};
+
 
 var fn = function(err, results) {
 	if( err ) return console.error(err.toString().red);

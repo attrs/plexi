@@ -2,10 +2,8 @@
   "name": "plexi",
   "version": "0.1.4",
   "description": "plugin system",
-  "main": "src/main.js",
-  "scripts": {
-    "test": "node -e 'console.log(\"test\")'"
-  },
+  "main": "index.js",
+  "scripts": {},
   "bin": {
     "plexi": "bin/plexi.js",
     "px": "bin/plexi.js"
@@ -15,6 +13,7 @@
     "attrs.util": "^0.1.0",
     "chalk": "^0.5.1",
     "cli-table": "^0.3.1",
+    "commander": "^2.6.0",
     "mkdirp": "^0.5.0",
     "npm": "^2.5.1",
     "semver": "^4.1.0",
