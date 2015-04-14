@@ -6,16 +6,11 @@ process.title = 'plexi';
 
 var path = require('path');
 var fs = require('fs');
+var semver = require('semver');
 var mkdirp = require('mkdirp');
+var inquirer = require('inquirer');
 var Application = require('../src/Application.js');
 var argv = process.argv;
-
-// check package file
-var packagefile = path.resolve(process.cwd(), 'package.json');
-if( !fs.existsSync(packagefile) ) {
-	console.error(('ERROR: package.json not found. npm init first.').red, process.cwd());
-	return;
-}
 
 var cmd = argv[2];
 var arg = [];
@@ -31,6 +26,85 @@ if( true ) {
 	}
 }
 
+if( cmd === 'init' ) {
+	var pkgfile = path.resolve(process.cwd(), 'package.json');	
+	var pkg = fs.existsSync(pkgfile) ? require(pkgfile) : {};
+	inquirer.prompt([
+		{
+			type: "input",
+			name: "name",
+			message: "name(" + (pkg.name || process.cwd().split(path.sep).pop()) + ")"
+		}, {
+			type: "input",
+			name: "version",
+			message: "version(" + (pkg.version || '0.0.0') + ")",
+			validate: function(value) {
+				if( !value || semver.valid(value) ) return true;
+			}
+		}, {
+			type: "input",
+			name: "description",
+			message: "description" + (pkg.description ? '(' + pkg.description + ')' : '')
+		}, {
+			type: "input",
+			name: "repository",
+			message: "repository" + (pkg.repository ? '(' + pkg.repository + ')' : '')
+		}, {
+			type: "input",
+			name: "main",
+			message: "main(" + (pkg.main || 'index.js') + ")",
+			validate: function(value) {
+				value = value || 'index.js';
+				if( !value.endsWith('.js') ) return false;
+				
+				var file = path.resolve(process.cwd(), value);
+				if( !fs.existsSync(file) ) {
+					fs.writeFileSync(file, '', {encoding: 'utf8'});
+				}
+				
+				return true;
+			}
+		}, {
+			type: "input",
+			name: "activator",
+			message: "activator" + (pkg.plexi && pkg.plexi.activator ? '(' + pkg.plexi.activator + ')' : '(activator.js)'),
+			validate: function(value) {
+				value = value || 'activator.js';
+				if( !value.endsWith('.js') ) return false;
+				
+				var file = path.resolve(process.cwd(), value);
+				if( !fs.existsSync(file) ) {
+					mkdirp.sync(path.resolve(file, '..'));
+					var data = fs.readFileSync(path.resolve(__dirname, '../src/activator.default.js'), {encoding: 'utf8'});
+					fs.writeFileSync(file, data, {encoding: 'utf8'});
+				}
+				
+				return true;
+			}
+		}
+	], function( answers ) {		
+		pkg.name = answers.name || pkg.name || process.cwd().split(path.sep).pop();
+		pkg.version = answers.version || pkg.version || '0.0.0';
+		pkg.description = answers.description || pkg.description || '';
+		pkg.main = answers.main || pkg.main || 'index.js';
+		if( answers.repository || pkg.repository ) pkg.repository = answers.repository || pkg.repository;
+
+		pkg.plexi = pkg.plexi || {};	
+		pkg.plexi.activator = answers.activator || pkg.plexi.activator || 'activator.js';
+		
+		fs.writeFileSync(pkgfile, JSON.stringify(pkg, null, '\t'), {encoding: 'utf8'});
+	});
+	
+	return;
+}
+
+// check package file
+var packagefile = path.resolve(process.cwd(), 'package.json');
+if( !fs.existsSync(packagefile) ) {
+	console.error('ERROR: package.json not found. npm init first.', process.cwd());
+	return;
+}
+
 //console.log('* cmd', cmd);
 //console.log('* arg', arg);
 //console.log('* options', options);
@@ -38,10 +112,6 @@ if( true ) {
 var app = new Application(process.cwd(), {
 	debug: options.debug
 });
-
-global.plexi = {
-	currentApplication: app 
-};
 
 var fn = function(err, results) {
 	if( err ) return console.error(err.toString().red);
@@ -73,20 +143,7 @@ process.on('SIGINT', function () {
 	process.exit();
 });
 
-if( cmd === 'init' ) {
-	if( options.debug ) console.log('* init...', arg);
-	var activator = arg[0] || 'activator.js';
-	if( !app.manifest.plexi ) app.manifest.plexi = {};
-	app.manifest.plexi.activator = activator;
-	app.manifest.save();
-	
-	var file = app.path(activator);
-	if( !fs.existsSync(file) ) {
-		mkdirp.sync(path.resolve(file, '..'));
-		var data = fs.readFileSync(path.resolve(__dirname, '../src/activator.default.js'), {encoding: 'utf8'});
-		fs.writeFileSync(file, data, {encoding: 'utf8'});
-	}
-} else if( cmd === 'install' ) {
+if( cmd === 'install' ) {
 	if( options.debug ) console.log('* installing...', arg);
 	
 	if( arg.length ) app.install(arg, savefn);
