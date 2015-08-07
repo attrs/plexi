@@ -7,8 +7,8 @@
     "test": "node -e 'console.log(\"test\")'"
   },
   "bin": {
-    "plexi": "bin/plexi.js",
-    "px": "bin/plexi.js"
+    "plexi": "bin/plexi",
+    "px": "bin/plexi"
   },
   "dependencies": {
     "async": "^0.9.0",
